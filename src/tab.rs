@@ -5592,7 +5592,10 @@ impl Tab {
             column = column.push(heading_rule);
         }
 
+        // WMDE: clicking the empty part of the address row enters path-edit mode
+        // (crumb buttons consume their own clicks; the rest falls through here)
         let mouse_area = crate::mouse_area::MouseArea::new(column)
+            .on_press(|_| Message::EditLocationEnable)
             .on_right_press(Message::LocationContextMenuPoint);
 
         let mut popover = widget::popover(mouse_area);

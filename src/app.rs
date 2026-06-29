@@ -445,6 +445,8 @@ pub enum Message {
     TabConfig(TabConfig),
     TabMessage(Option<Entity>, tab::Message),
     TabNew,
+    // WMDE: open a sidebar location in a background tab (middle-click)
+    WmdeOpenInBackgroundTab(PathBuf),
     TabRescan(
         Entity,
         Location,
@@ -1787,20 +1789,32 @@ impl App {
                     icon::from_name("text-x-generic-symbolic").size(16).handle()
                 })
                 .size(16);
+                let mid_path = path.clone();
                 col = col.push(
-                    widget::button::custom(
-                        widget::row::with_children(vec![ic.into(), widget::text(name).into()])
+                    crate::mouse_area::MouseArea::new(
+                        widget::button::custom(
+                            widget::row::with_children(vec![
+                                ic.into(),
+                                widget::text(name).into(),
+                            ])
                             .spacing(space_xxs)
                             .align_y(Alignment::Center),
+                        )
+                        .on_press(Message::TabMessage(
+                            None,
+                            tab::Message::Location(Location::Path(path.clone())),
+                        ))
+                        .padding([space_xxxs, space_xs])
+                        .class(if current_path.as_deref() == Some(path.as_path()) {
+                            wmde_nav_selected_style()
+                        } else {
+                            theme::Button::ListItem([4.0; 4])
+                        })
+                        .width(Length::Fill),
                     )
-                    .on_press(Message::TabMessage(
-                        None,
-                        tab::Message::Location(Location::Path(path.clone())),
-                    ))
-                    .selected(current_path.as_deref() == Some(path.as_path()))
-                    .padding([space_xxxs, space_xs])
-                    .class(theme::Button::ListItem([4.0; 4]))
-                    .width(Length::Fill),
+                    .on_middle_press(move |_| {
+                        Message::WmdeOpenInBackgroundTab(mid_path.clone())
+                    }),
                 );
             }
         }
@@ -1828,20 +1842,30 @@ impl App {
                 icon::from_name("drive-harddisk-symbolic").size(16).handle(),
             )
             .size(16);
+            let mid_path = path.clone();
             col = col.push(
-                widget::button::custom(
-                    widget::row::with_children(vec![dic.into(), widget::text(name).into()])
+                crate::mouse_area::MouseArea::new(
+                    widget::button::custom(
+                        widget::row::with_children(vec![
+                            dic.into(),
+                            widget::text(name).into(),
+                        ])
                         .spacing(space_xxs)
                         .align_y(Alignment::Center),
+                    )
+                    .on_press(Message::TabMessage(
+                        None,
+                        tab::Message::Location(Location::Path(path.clone())),
+                    ))
+                    .padding([space_xxxs, space_xs])
+                    .class(if current_path.as_deref() == Some(path.as_path()) {
+                        wmde_nav_selected_style()
+                    } else {
+                        theme::Button::ListItem([4.0; 4])
+                    })
+                    .width(Length::Fill),
                 )
-                .on_press(Message::TabMessage(
-                    None,
-                    tab::Message::Location(Location::Path(path.clone())),
-                ))
-                .selected(current_path.as_deref() == Some(path.as_path()))
-                .padding([space_xxxs, space_xs])
-                .class(theme::Button::ListItem([4.0; 4]))
-                .width(Length::Fill),
+                .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_path.clone())),
             );
             if let Some((f, avail)) = usage {
                 col = col.push(
@@ -3836,6 +3860,9 @@ impl Application for App {
                         .into_iter()
                         .map(|path| self.open_tab(Location::Path(path), false, None)),
                 );
+            }
+            Message::WmdeOpenInBackgroundTab(path) => {
+                return self.open_tab(Location::Path(path), false, None);
             }
             Message::OpenInNewWindow(entity_opt) => match env::current_exe() {
                 Ok(exe) => self
@@ -7394,6 +7421,29 @@ pub(crate) mod test_utils {
             path.display(),
             tab_path.display()
         );
+    }
+}
+
+// WMDE: neutral selection appearance for sidebar items - gray bg (matches ListItem's
+// selected background) but keeps text/icon neutral instead of the accent tint, so the
+// selected entry reads as Win11-style (no blue icon).
+fn wmde_nav_selected_appearance(theme: &theme::Theme) -> widget::button::Style {
+    let cosmic = theme.cosmic();
+    let mut appearance = widget::button::Style::new();
+    appearance.background =
+        Some(cosmic::iced::Color::from(cosmic.primary.component.hover).into());
+    appearance.text_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
+    appearance.icon_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
+    appearance.border_radius = [4.0_f32; 4].into();
+    appearance
+}
+
+fn wmde_nav_selected_style() -> theme::Button {
+    theme::Button::Custom {
+        active: Box::new(|_focused, theme| wmde_nav_selected_appearance(theme)),
+        disabled: Box::new(|theme| wmde_nav_selected_appearance(theme)),
+        hovered: Box::new(|_focused, theme| wmde_nav_selected_appearance(theme)),
+        pressed: Box::new(|_focused, theme| wmde_nav_selected_appearance(theme)),
     }
 }
 
