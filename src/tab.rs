@@ -204,11 +204,9 @@ fn button_appearance(
         appearance.border_width = 2.0;
         appearance.border_color = Color::TRANSPARENT;
     }
-    if condensed_radius {
-        appearance.border_radius = cosmic.radius_xs().into();
-    } else {
-        appearance.border_radius = cosmic.radius_s().into();
-    }
+    // WMDE: selection/hover highlight rounding fixed at 2 (general rounding stays 4)
+    let _ = condensed_radius;
+    appearance.border_radius = [2.0; 4].into();
     appearance
 }
 
@@ -270,6 +268,36 @@ fn button_style(
                 desktop,
             )
         }),
+    }
+}
+
+// WMDE: text input styled like the address field (bg #1a1a1a, 1px #494949 border, radius 2)
+pub fn wmde_input_style() -> theme::TextInput {
+    use cosmic::widget::text_input::{Appearance, StyleSheet};
+    fn like_address(mut a: Appearance) -> Appearance {
+        a.border_radius = [2.0_f32; 4].into();
+        a.border_width = 1.0;
+        a.border_color = Color {
+            r: 0.286_274_5,
+            g: 0.286_274_5,
+            b: 0.286_274_5,
+            a: 1.0,
+        };
+        a.background = Color {
+            r: 0.101_960_79,
+            g: 0.101_960_79,
+            b: 0.101_960_79,
+            a: 1.0,
+        }
+        .into();
+        a
+    }
+    theme::TextInput::Custom {
+        active: Box::new(|t| like_address(StyleSheet::active(t, &theme::TextInput::Default))),
+        error: Box::new(|t| like_address(StyleSheet::error(t, &theme::TextInput::Default))),
+        hovered: Box::new(|t| like_address(StyleSheet::hovered(t, &theme::TextInput::Default))),
+        focused: Box::new(|t| like_address(StyleSheet::focused(t, &theme::TextInput::Default))),
+        disabled: Box::new(|t| like_address(StyleSheet::disabled(t, &theme::TextInput::Default))),
     }
 }
 
@@ -5278,7 +5306,7 @@ impl Tab {
         let mut row = widget::row::with_capacity(5)
             .align_y(Alignment::Center)
             .width(Length::Fill)
-            .padding([space_xxxs, space_s]);
+            .padding([space_xxxs, space_xxxs]);
         let mut w = 0.0;
 
         let mut prev_button =
@@ -5361,14 +5389,6 @@ impl Tab {
         .height(Length::Fixed((space_m + 4).into()))
         .padding([0, space_xxs]);
 
-        // WMDE: neutral Win11-style separator under the navigation row (was accent blue)
-        let accent_rule =
-            rule::horizontal(1).class(theme::Rule::Custom(Box::new(|theme| rule::Style {
-                color: theme.cosmic().background.divider.into(),
-                radius: 0.0.into(),
-                fill_mode: rule::FillMode::Full,
-                snap: true,
-            })));
         let heading_rule = widget::container(rule::horizontal(1))
             .padding([0, theme::active().cosmic().corner_radii.radius_xs[0] as u16]);
 
@@ -5385,6 +5405,7 @@ impl Tab {
                             Message::EditLocation(Some(location.with_uri(input).into()))
                         })
                         .on_submit(|_| Message::EditLocationSubmit)
+                        .style(wmde_input_style())
                         .line_height(1.0),
                 );
             } else if let Some(resolved_location) = edit_location.resolve()
@@ -5401,6 +5422,7 @@ impl Tab {
                         .on_submit(|_| Message::EditLocationSubmit)
                         .on_tab(Message::EditLocationTab)
                         .on_unfocus(Message::EditLocation(None))
+                        .style(wmde_input_style())
                         .line_height(1.0),
                 );
             }
@@ -5447,7 +5469,6 @@ impl Tab {
             .padding([0, 0])
             .width(Length::Fill);
                 column = column.push(row);
-                column = column.push(accent_rule);
                 if self.config.view == View::List && !condensed {
                     column = column.push(heading_row);
                     column = column.push(heading_rule);
@@ -5580,12 +5601,64 @@ impl Tab {
             }
         }
 
-        row = row.extend(children);
+        // WMDE: address field (breadcrumbs) framed like a Win11 input; nav buttons stay outside,
+        // with a leading icon of the current location (Win11-style).
+        let loc_icon = match &self.location {
+            Location::Path(p) => folder_icon_symbolic(p, 16),
+            Location::Trash => widget::icon::from_name("user-trash-symbolic")
+                .size(16)
+                .handle(),
+            Location::Network(..) => widget::icon::from_name("network-workgroup-symbolic")
+                .size(16)
+                .handle(),
+            _ => widget::icon::from_name("folder-symbolic").size(16).handle(),
+        };
+        let mut field_row = widget::row::with_capacity(children.len() + 4)
+            .align_y(Alignment::Center);
+        field_row = field_row.push(widget::icon::icon(loc_icon).size(16));
+        field_row =
+            field_row.push(widget::space::horizontal().width(Length::Fixed(space_xxs.into())));
+        field_row = field_row.extend(children);
+        // WMDE: reload button at the right end of the address field (Win11-style)
+        field_row = field_row.push(widget::space::horizontal().width(Length::Fill));
+        field_row = field_row.push(
+            widget::button::custom(widget::icon::from_name("view-refresh-symbolic").size(16))
+                .padding(space_xxxs)
+                .class(theme::Button::Icon)
+                .on_press(Message::Reload),
+        );
+        let crumbs = widget::container(field_row)
+        .class(theme::Container::custom(|_theme| widget::container::Style {
+            background: Some(
+                Color {
+                    r: 0.101_960_79,
+                    g: 0.101_960_79,
+                    b: 0.101_960_79,
+                    a: 1.0,
+                }
+                .into(),
+            ),
+            border: Border {
+                color: Color {
+                    r: 0.286_274_5,
+                    g: 0.286_274_5,
+                    b: 0.286_274_5,
+                    a: 1.0,
+                },
+                width: 1.0,
+                radius: [2.0; 4].into(),
+            },
+            ..Default::default()
+        }))
+        .padding([0, space_xxs])
+        .height(Length::Fixed(32.0))
+        .align_y(Vertical::Center)
+        .width(Length::Fill);
+        row = row.push(crumbs);
         let mut column = widget::column::with_capacity(4)
             .padding([0, 0])
             .width(Length::Fill);
         column = column.push(row);
-        column = column.push(accent_rule);
 
         if self.config.view == View::List && !condensed {
             column = column.push(heading_row);

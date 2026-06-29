@@ -1808,7 +1808,7 @@ impl App {
                         .class(if current_path.as_deref() == Some(path.as_path()) {
                             wmde_nav_selected_style()
                         } else {
-                            theme::Button::ListItem([4.0; 4])
+                            theme::Button::ListItem([2.0; 4])
                         })
                         .width(Length::Fill),
                     )
@@ -1861,7 +1861,7 @@ impl App {
                     .class(if current_path.as_deref() == Some(path.as_path()) {
                         wmde_nav_selected_style()
                     } else {
-                        theme::Button::ListItem([4.0; 4])
+                        theme::Button::ListItem([2.0; 4])
                     })
                     .width(Length::Fill),
                 )
@@ -3573,6 +3573,8 @@ impl Application for App {
                         });
                         if let Some(title) = title_opt {
                             self.tab_model.text_set(entity, title);
+                            self.tab_model
+                                .icon_set(entity, wmde_tab_icon(&home_location));
                             commands.push(self.update_tab(entity, home_location.clone(), None));
                         }
                     }
@@ -4576,6 +4578,12 @@ impl Application for App {
                             self.activate_nav_model_location(&tab_path);
 
                             self.tab_model.text_set(entity, tab_title);
+                            // WMDE: keep the tab icon in sync with the location
+                            if let Some(location) =
+                                self.tab_model.data::<Tab>(entity).map(|t| t.location.clone())
+                            {
+                                self.tab_model.icon_set(entity, wmde_tab_icon(&location));
+                            }
                             // clear the prefix selection buffer when changing location
                             self.type_select_prefix.clear();
                             commands.push(Task::batch([
@@ -5067,6 +5075,7 @@ impl Application for App {
                     };
                     if let Some(title) = title_opt {
                         self.tab_model.text_set(entity, title);
+                        self.tab_model.icon_set(entity, wmde_tab_icon(&location));
                         return Task::batch([
                             self.update_title(),
                             self.update_watcher(),
@@ -6482,6 +6491,7 @@ impl Application for App {
             widget::tab_bar::horizontal(&self.tab_model)
                 .button_height(32)
                 .button_spacing(space_xxs)
+                .style(wmde_tab_style())
                 .enable_tab_drag(String::from("x-cosmic-files/tab-dnd"))
                 .on_reorder(Message::ReorderTab)
                 .tab_drag_threshold(25.)
@@ -6499,44 +6509,29 @@ impl Application for App {
     }
 
     fn header_end(&self) -> Vec<Element<'_, Self::Message>> {
-        let mut elements = Vec::with_capacity(2);
+        // WMDE: search moved to a persistent field in the navigation row (Win11-style)
+        Vec::new()
+    }
 
-        if let Some(term) = self.search_get() {
-            if self.core.is_condensed() {
-                elements.push(
-                    //TODO: selected state is not appearing different
-                    widget::button::icon(icon::from_name("system-search-symbolic"))
-                        .on_press(Message::SearchClear)
-                        .padding(8)
-                        .selected(true)
-                        .into(),
-                );
-            } else {
-                elements.push(
-                    widget::text_input::search_input("", term)
-                        .width(Length::Fixed(240.0))
-                        .id(self.search_id.clone())
-                        .on_clear(Message::SearchClear)
-                        .on_input(Message::SearchInput)
-                        .into(),
-                );
-            }
-        } else {
-            elements.push(
-                widget::button::icon(icon::from_name("system-search-symbolic"))
-                    .on_press(Message::SearchActivate)
-                    .padding(8)
-                    .into(),
-            );
-        }
-
-        elements
+    // WMDE: window background = title bar color (#010C22). The CSD header is transparent,
+    // so it shows this clear color; our body container paints the content over it.
+    fn style(&self) -> Option<cosmic::iced::theme::Style> {
+        let theme = theme::active();
+        let cosmic = theme.cosmic();
+        Some(cosmic::iced::theme::Style {
+            icon_color: cosmic.on_bg_color().into(),
+            text_color: cosmic.on_bg_color().into(),
+            background_color: WMDE_TITLEBAR,
+        })
     }
 
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
-            space_xxs, space_s, ..
+            space_xxxs,
+            space_xxs,
+            space_s,
+            ..
         } = theme::spacing();
 
         let mut tab_column = widget::column::with_capacity(4);
@@ -6597,18 +6592,46 @@ impl Application for App {
         };
         widget::container(
             widget::column::with_children(vec![
-                menu.into(),
-                widget::container(location_bar)
-                    .class(theme::Container::Primary)
+                widget::container(menu)
+                    .class(wmde_menubar_container())
                     .width(Length::Fill)
                     .into(),
+                // WMDE: address field on the left, persistent search box on the right (Win11-style)
+                widget::row::with_children(vec![
+                    widget::container(location_bar)
+                        .class(theme::Container::Transparent)
+                        .width(Length::Fill)
+                        .into(),
+                    widget::text_input("", self.search_get().unwrap_or_default())
+                        .leading_icon(
+                            widget::icon::from_name("system-search-symbolic")
+                                .size(16)
+                                .icon()
+                                .into(),
+                        )
+                        .width(Length::Fixed(220.0))
+                        .id(self.search_id.clone())
+                        .on_clear(Message::SearchClear)
+                        .on_input(Message::SearchInput)
+                        .padding([0, space_xxs])
+                        .style(tab::wmde_input_style())
+                        .into(),
+                ])
+                .align_y(Alignment::Center)
+                .spacing(space_xxs)
+                .padding([0, space_xxxs, 0, 0])
+                .into(),
                 widget::row::with_children(vec![self.wmde_sidebar(), content]).into(),
             ])
             .width(Length::Fill)
             .height(Length::Fill),
         )
-        // WMDE: paint the window background ourselves since content_container is off
-        .class(theme::Container::WindowBackground)
+        // WMDE: exact Win11 content surface (#1a1a1a); the darker title bar (App::style
+        // window background #010C22) shows the active tab connected to the menu strip.
+        .class(theme::Container::custom(|_theme| widget::container::Style {
+            background: Some(cosmic::iced::Background::Color(WMDE_SURFACE)),
+            ..Default::default()
+        }))
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
@@ -7434,8 +7457,90 @@ fn wmde_nav_selected_appearance(theme: &theme::Theme) -> widget::button::Style {
         Some(cosmic::iced::Color::from(cosmic.primary.component.hover).into());
     appearance.text_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
     appearance.icon_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
-    appearance.border_radius = [4.0_f32; 4].into();
+    appearance.border_radius = [2.0_f32; 4].into();
     appearance
+}
+
+// WMDE: exact Win11-dark Explorer colors, sampled from the reference screenshot.
+// Title bar (window background) = #010C22; menu + address bar + active tab = #191F2D;
+// content + sidebar ("the rest") = #1a1a1a.
+const WMDE_TITLEBAR: cosmic::iced::Color = cosmic::iced::Color {
+    r: 0.0,
+    g: 0.050_980_39,
+    b: 0.125_490_2,
+    a: 1.0,
+};
+const WMDE_MENUBAR: cosmic::iced::Color = cosmic::iced::Color {
+    r: 0.141_176_47,
+    g: 0.176_470_59,
+    b: 0.243_137_26,
+    a: 1.0,
+};
+const WMDE_SURFACE: cosmic::iced::Color = cosmic::iced::Color {
+    r: 0.101_960_79,
+    g: 0.101_960_79,
+    b: 0.101_960_79,
+    a: 1.0,
+};
+
+// WMDE: container background helper for the menu + address bar strip (#191F2D)
+fn wmde_menubar_container() -> theme::Container<'static> {
+    theme::Container::custom(|_theme| widget::container::Style {
+        background: Some(cosmic::iced::Background::Color(WMDE_MENUBAR)),
+        ..Default::default()
+    })
+}
+
+// WMDE: Win11-style tabs - active tab uses the body surface color so it connects to the
+// content below, rounded only on top, no accent underline, neutral text.
+fn wmde_tab_style() -> theme::SegmentedButton {
+    use cosmic::widget::segmented_button::{Appearance, ItemAppearance, ItemStatusAppearance};
+    theme::SegmentedButton::Custom(Box::new(|theme| {
+        let cosmic = theme.cosmic();
+        let rad = cosmic.corner_radii.radius_s;
+        let top_round = cosmic::iced::border::Radius::from([rad[0], rad[1], 0.0, 0.0]);
+        // active tab uses the menu/address-bar color so it connects to the strip below it
+        let body = WMDE_MENUBAR;
+        let on = cosmic::iced::Color::from(cosmic.background.on);
+        let on_dim = cosmic::iced::Color::from(cosmic.background.component.on);
+        let item = |radius| ItemAppearance {
+            border: cosmic::iced::Border {
+                radius,
+                ..Default::default()
+            },
+        };
+        let active = ItemStatusAppearance {
+            background: Some(cosmic::iced::Background::Color(body)),
+            first: item(top_round),
+            middle: item(top_round),
+            last: item(top_round),
+            text_color: on,
+        };
+        Appearance {
+            background: None,
+            border: cosmic::iced::Border::default(),
+            active_width: 0.0,
+            active,
+            inactive: ItemStatusAppearance {
+                background: None,
+                text_color: on_dim,
+                ..active
+            },
+            hover: ItemStatusAppearance {
+                background: Some(cosmic::iced::Background::Color(cosmic::iced::Color {
+                    a: 0.5,
+                    ..body
+                })),
+                text_color: on,
+                ..active
+            },
+            pressed: ItemStatusAppearance {
+                background: Some(cosmic::iced::Background::Color(body)),
+                text_color: on,
+                ..active
+            },
+        }
+    }))
 }
 
 fn wmde_nav_selected_style() -> theme::Button {
