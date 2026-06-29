@@ -394,3 +394,12 @@ mixed = Змішано
 search = Пошук
 search-placeholder = Пошук: { $name }
 search-title = Пошук «{ $term }»: { $name }
+status-items =
+    { $items } { $items ->
+        [one] елемент
+        [few] елементи
+        [many] елементів
+       *[other] елемента
+    }
+status-selected = { $selected } вибрано
+status-disk = { $total } · зайнято { $used } · вільно { $free }

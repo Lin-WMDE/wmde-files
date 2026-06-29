@@ -729,9 +729,9 @@ pub struct App {
     mime_app_cache: MimeAppCache,
     modifiers: Modifiers,
     mounter_items: FxHashMap<MounterKey, MounterItems>,
-    // WMDE: cached disk usage (fraction, free bytes) per drive path; refreshed on mount
+    // WMDE: cached disk usage (total bytes, free bytes) per drive path; refreshed on mount
     // changes instead of stat-ing on every render (and skips remote mounts to avoid UI hangs).
-    wmde_disk_usage: HashMap<PathBuf, (f32, u64)>,
+    wmde_disk_usage: HashMap<PathBuf, (u64, u64)>,
     must_save_sort_names: bool,
     network_drive_connecting: Option<(MounterKey, String)>,
     network_drive_input: String,
@@ -1757,6 +1757,74 @@ impl App {
         Task::none()
     }
 
+    // WMDE: the cached disk (total, free) for the mount whose path is the longest prefix of `path`.
+    fn wmde_current_disk(&self, path: &std::path::Path) -> Option<(u64, u64)> {
+        self.wmde_disk_usage
+            .iter()
+            .filter(|(mount, _)| path.starts_with(mount))
+            .max_by_key(|(mount, _)| mount.as_os_str().len())
+            .map(|(_, usage)| *usage)
+    }
+
+    // WMDE: Win11-style status bar, rendered at the bottom of the body (not the libcosmic
+    // footer slot, which is transparent and inset). Without a selection: item count + the
+    // current disk's total/used/free. With a selection: the selected count + combined size.
+    fn wmde_status_bar(&self) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_xxxs, space_s, ..
+        } = theme::spacing();
+        let tab_opt = self.tab_model.active_data::<Tab>();
+        let (count, selected_count, selected_size) = match tab_opt.and_then(|tab| tab.items_opt())
+        {
+            Some(items) => {
+                let selected: Vec<_> = items.iter().filter(|item| item.selected).collect();
+                let size: u64 = selected
+                    .iter()
+                    .filter_map(|item| item.metadata.file_size())
+                    .sum();
+                (items.len(), selected.len(), size)
+            }
+            None => (0, 0, 0),
+        };
+
+        let text = if selected_count > 0 {
+            format!(
+                "{}  ·  {}",
+                fl!("status-selected", selected = selected_count),
+                tab::format_size(selected_size)
+            )
+        } else {
+            let disk = tab_opt
+                .and_then(|tab| match &tab.location {
+                    Location::Path(p) | Location::Desktop(p, ..) => Some(p.clone()),
+                    _ => None,
+                })
+                .and_then(|p| self.wmde_current_disk(&p));
+            match disk {
+                Some((total, avail)) => format!(
+                    "{}  ·  {}",
+                    fl!("status-items", items = count),
+                    fl!(
+                        "status-disk",
+                        total = tab::format_size(total),
+                        used = tab::format_size(total.saturating_sub(avail)),
+                        free = tab::format_size(avail)
+                    )
+                ),
+                None => fl!("status-items", items = count),
+            }
+        };
+
+        widget::column::with_children(vec![
+            widget::divider::horizontal::default().into(),
+            widget::container(widget::text::caption(text))
+                .padding([space_xxxs, space_s])
+                .width(Length::Fill)
+                .into(),
+        ])
+        .into()
+    }
+
     // WMDE: recompute cached per-drive disk usage. Called on startup and on mount changes,
     // NOT on every render. Remote mounts are skipped so a hung network mount can't freeze the UI.
     fn wmde_refresh_disk_usage(&mut self) {
@@ -1832,7 +1900,13 @@ impl App {
             }
         }
         for (name, path) in drives {
-            let fraction = self.wmde_disk_usage.get(&path).map(|(f, _)| *f);
+            let fraction = self.wmde_disk_usage.get(&path).map(|(total, avail)| {
+                if *total > 0 {
+                    total.saturating_sub(*avail) as f32 / *total as f32
+                } else {
+                    0.0
+                }
+            });
             let selected = current_path.as_deref() == Some(path.as_path());
             col = col.push(wmde_drive_entry(name, path, selected, fraction));
         }
@@ -4477,6 +4551,8 @@ impl Application for App {
                             {
                                 self.tab_model.icon_set(entity, wmde_tab_icon(&location));
                             }
+                            // WMDE: refresh disk usage so the status bar shows the new disk
+                            self.wmde_refresh_disk_usage();
                             // clear the prefix selection buffer when changing location
                             self.type_select_prefix.clear();
                             commands.push(Task::batch([
@@ -6508,6 +6584,8 @@ impl Application for App {
                     content,
                 ])
                 .into(),
+                // WMDE: status bar at the bottom of the body (edge-to-edge, opaque)
+                self.wmde_status_bar(),
             ])
             .width(Length::Fill)
             .height(Length::Fill),
@@ -7439,7 +7517,8 @@ fn wmde_nav_selected_style() -> theme::Button {
 }
 
 // WMDE: filesystem (usage fraction 0.0..=1.0, available bytes) via statvfs
-fn wmde_fs_usage(path: &std::path::Path) -> Option<(f32, u64)> {
+// WMDE: total and available bytes for the filesystem containing `path`, via statvfs.
+fn wmde_fs_usage(path: &std::path::Path) -> Option<(u64, u64)> {
     use std::os::unix::ffi::OsStrExt;
     let cpath = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
@@ -7451,7 +7530,7 @@ fn wmde_fs_usage(path: &std::path::Path) -> Option<(f32, u64)> {
     if total <= 0.0 {
         return None;
     }
-    Some((((total - avail) / total) as f32, avail as u64))
+    Some((total as u64, avail as u64))
 }
 
 // WMDE: icon for a tab based on its location
