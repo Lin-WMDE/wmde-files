@@ -36,7 +36,7 @@ use cosmic::widget::menu::action::MenuAction;
 use cosmic::widget::menu::key_bind::KeyBind;
 use cosmic::widget::segmented_button::{self, Entity, ReorderEvent};
 use cosmic::widget::{self, icon, settings, space};
-use cosmic::{Application, ApplicationExt, Element, cosmic_theme, executor, style, surface, theme};
+use cosmic::{Application, ApplicationExt, Element, cosmic_theme, executor, surface, theme};
 use mime_guess::Mime;
 use notify_debouncer_full::notify::{self, RecommendedWatcher};
 use notify_debouncer_full::{DebouncedEvent, Debouncer, RecommendedCache, new_debouncer};
@@ -732,6 +732,9 @@ pub struct App {
     mime_app_cache: MimeAppCache,
     modifiers: Modifiers,
     mounter_items: FxHashMap<MounterKey, MounterItems>,
+    // WMDE: cached disk usage (fraction, free bytes) per drive path; refreshed on mount
+    // changes instead of stat-ing on every render (and skips remote mounts to avoid UI hangs).
+    wmde_disk_usage: HashMap<PathBuf, (f32, u64)>,
     must_save_sort_names: bool,
     network_drive_connecting: Option<(MounterKey, String)>,
     network_drive_input: String,
@@ -1757,6 +1760,27 @@ impl App {
         Task::none()
     }
 
+    // WMDE: recompute cached per-drive disk usage. Called on startup and on mount changes,
+    // NOT on every render. Remote mounts are skipped so a hung network mount can't freeze the UI.
+    fn wmde_refresh_disk_usage(&mut self) {
+        self.wmde_disk_usage.clear();
+        let root = PathBuf::from("/");
+        if let Some(usage) = wmde_fs_usage(&root) {
+            self.wmde_disk_usage.insert(root, usage);
+        }
+        for (_key, items) in self.mounter_items.iter() {
+            for item in items.iter() {
+                if item.is_mounted()
+                    && !item.is_remote()
+                    && let Some(path) = item.path()
+                    && let Some(usage) = wmde_fs_usage(&path)
+                {
+                    self.wmde_disk_usage.insert(path, usage);
+                }
+            }
+        }
+    }
+
     fn wmde_sidebar(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xxxs, space_xxs, space_xs, space_s, ..
@@ -1783,39 +1807,13 @@ impl App {
                 } else {
                     fl!("filesystem")
                 };
-                let ic = icon::icon(if path.is_dir() {
+                let ic = if path.is_dir() {
                     tab::folder_icon_symbolic(&path, 16)
                 } else {
                     icon::from_name("text-x-generic-symbolic").size(16).handle()
-                })
-                .size(16);
-                let mid_path = path.clone();
-                col = col.push(
-                    crate::mouse_area::MouseArea::new(
-                        widget::button::custom(
-                            widget::row::with_children(vec![
-                                ic.into(),
-                                widget::text(name).into(),
-                            ])
-                            .spacing(space_xxs)
-                            .align_y(Alignment::Center),
-                        )
-                        .on_press(Message::TabMessage(
-                            None,
-                            tab::Message::Location(Location::Path(path.clone())),
-                        ))
-                        .padding([space_xxxs, space_xs])
-                        .class(if current_path.as_deref() == Some(path.as_path()) {
-                            wmde_nav_selected_style()
-                        } else {
-                            theme::Button::ListItem([2.0; 4])
-                        })
-                        .width(Length::Fill),
-                    )
-                    .on_middle_press(move |_| {
-                        Message::WmdeOpenInBackgroundTab(mid_path.clone())
-                    }),
-                );
+                };
+                let selected = current_path.as_deref() == Some(path.as_path());
+                col = col.push(wmde_sidebar_entry(ic, name, path, selected));
             }
         }
 
@@ -1837,36 +1835,10 @@ impl App {
             }
         }
         for (name, path) in drives {
-            let usage = wmde_fs_usage(&path);
-            let dic = icon::icon(
-                icon::from_name("drive-harddisk-symbolic").size(16).handle(),
-            )
-            .size(16);
-            let mid_path = path.clone();
-            col = col.push(
-                crate::mouse_area::MouseArea::new(
-                    widget::button::custom(
-                        widget::row::with_children(vec![
-                            dic.into(),
-                            widget::text(name).into(),
-                        ])
-                        .spacing(space_xxs)
-                        .align_y(Alignment::Center),
-                    )
-                    .on_press(Message::TabMessage(
-                        None,
-                        tab::Message::Location(Location::Path(path.clone())),
-                    ))
-                    .padding([space_xxxs, space_xs])
-                    .class(if current_path.as_deref() == Some(path.as_path()) {
-                        wmde_nav_selected_style()
-                    } else {
-                        theme::Button::ListItem([2.0; 4])
-                    })
-                    .width(Length::Fill),
-                )
-                .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_path.clone())),
-            );
+            let usage = self.wmde_disk_usage.get(&path).copied();
+            let selected = current_path.as_deref() == Some(path.as_path());
+            let dic = icon::from_name("drive-harddisk-symbolic").size(16).handle();
+            col = col.push(wmde_sidebar_entry(dic, name, path, selected));
             if let Some((f, avail)) = usage {
                 col = col.push(
                     widget::container(
@@ -2565,6 +2537,7 @@ impl Application for App {
             mime_app_cache: MimeAppCache::new(),
             modifiers: Modifiers::empty(),
             mounter_items: FxHashMap::default(),
+            wmde_disk_usage: HashMap::default(),
             must_save_sort_names: false,
             network_drive_connecting: None,
             network_drive_input: String::new(),
@@ -2635,6 +2608,8 @@ impl Application for App {
                 commands.push(app.open_tab(Location::Path(home_dir()), true, None));
             }
         }
+
+        app.wmde_refresh_disk_usage();
 
         (app, Task::batch(commands))
     }
@@ -3586,6 +3561,8 @@ impl Application for App {
 
                 // Insert new items
                 self.mounter_items.insert(mounter_key, mounter_items);
+                // WMDE: recompute cached disk usage now that mounts changed
+                self.wmde_refresh_disk_usage();
 
                 // Update nav bar
                 //TODO: this could change favorites IDs while they are in use
@@ -4423,6 +4400,11 @@ impl Application for App {
                 return Task::batch([self.close_context_menus(), self.search_set_active(None)]);
             }
             Message::SearchInput(input) => {
+                // WMDE: emptying the search field returns to the folder instead of
+                // leaving the tab in a degenerate empty-search state
+                if input.is_empty() {
+                    return self.search_set_active(None);
+                }
                 return self.search_set_active(Some(input));
             }
             Message::SetShowDetails(show_details) => {
@@ -6513,44 +6495,19 @@ impl Application for App {
         Vec::new()
     }
 
-    // WMDE: window background = title bar color (#010C22). The CSD header is transparent,
-    // so it shows this clear color; our body container paints the content over it.
-    fn style(&self) -> Option<cosmic::iced::theme::Style> {
-        let theme = theme::active();
-        let cosmic = theme.cosmic();
-        Some(cosmic::iced::theme::Style {
-            icon_color: cosmic.on_bg_color().into(),
-            text_color: cosmic.on_bg_color().into(),
-            background_color: WMDE_TITLEBAR,
-        })
-    }
-
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
             space_xxxs,
             space_xxs,
-            space_s,
             ..
         } = theme::spacing();
 
         let mut tab_column = widget::column::with_capacity(4);
 
 
-        if self.core.is_condensed()
-            && let Some(term) = self.search_get()
-        {
-            tab_column = tab_column.push(
-                widget::container(
-                    widget::text_input::search_input("", term)
-                        .width(Length::Fill)
-                        .id(self.search_id.clone())
-                        .on_clear(Message::SearchClear)
-                        .on_input(Message::SearchInput),
-                )
-                .padding(space_xxs),
-            );
-        }
+        // WMDE: search lives in the navigation row now (persistent field), so the old
+        // condensed-mode search input here would double up on the same widget Id.
 
         // WMDE: tabs moved to title bar (header_center)
 
@@ -6626,8 +6583,8 @@ impl Application for App {
             .width(Length::Fill)
             .height(Length::Fill),
         )
-        // WMDE: exact Win11 content surface (#1a1a1a); the darker title bar (App::style
-        // window background #010C22) shows the active tab connected to the menu strip.
+        // WMDE: exact Win11 content surface (#1a1a1a); the darker title bar (theme
+        // background.base = #000D20) makes the active tab read as connected to the menu strip.
         .class(theme::Container::custom(|_theme| widget::container::Style {
             background: Some(cosmic::iced::Background::Color(WMDE_SURFACE)),
             ..Default::default()
@@ -7462,24 +7419,24 @@ fn wmde_nav_selected_appearance(theme: &theme::Theme) -> widget::button::Style {
 }
 
 // WMDE: exact Win11-dark Explorer colors, sampled from the reference screenshot.
-// Title bar (window background) = #010C22; menu + address bar + active tab = #191F2D;
-// content + sidebar ("the rest") = #1a1a1a.
-const WMDE_TITLEBAR: cosmic::iced::Color = cosmic::iced::Color {
-    r: 0.0,
-    g: 0.050_980_39,
-    b: 0.125_490_2,
-    a: 1.0,
-};
+// Menu bar + active tab = #242D3E; content + sidebar = #1a1a1a; input/field border = #494949.
+// The title bar is colored via the theme's background.base (= #000D20), not from here.
 const WMDE_MENUBAR: cosmic::iced::Color = cosmic::iced::Color {
     r: 0.141_176_47,
     g: 0.176_470_59,
     b: 0.243_137_26,
     a: 1.0,
 };
-const WMDE_SURFACE: cosmic::iced::Color = cosmic::iced::Color {
+pub(crate) const WMDE_SURFACE: cosmic::iced::Color = cosmic::iced::Color {
     r: 0.101_960_79,
     g: 0.101_960_79,
     b: 0.101_960_79,
+    a: 1.0,
+};
+pub(crate) const WMDE_FIELD_BORDER: cosmic::iced::Color = cosmic::iced::Color {
+    r: 0.286_274_5,
+    g: 0.286_274_5,
+    b: 0.286_274_5,
     a: 1.0,
 };
 
@@ -7586,13 +7543,45 @@ fn wmde_fmt_bytes(bytes: u64) -> String {
 
 // WMDE: icon for a tab based on its location
 fn wmde_tab_icon(location: &Location) -> widget::Icon {
-    let handle = match location {
-        Location::Path(p) => tab::folder_icon_symbolic(p, 16),
-        Location::Trash => Trash::icon_symbolic(16),
-        Location::Recents => icon::from_name("document-open-recent-symbolic")
-            .size(16)
-            .handle(),
-        _ => icon::from_name("folder-symbolic").size(16).handle(),
-    };
-    icon::icon(handle).size(16)
+    icon::icon(tab::wmde_location_icon(location)).size(16)
+}
+
+// WMDE: one sidebar row (icon + label), shared by the favorites and drives loops.
+// Left click navigates the active tab; middle click opens the target in a background tab.
+fn wmde_sidebar_entry(
+    icon_handle: widget::icon::Handle,
+    name: String,
+    path: PathBuf,
+    selected: bool,
+) -> Element<'static, Message> {
+    let cosmic_theme::Spacing {
+        space_xxxs,
+        space_xxs,
+        space_xs,
+        ..
+    } = theme::spacing();
+    let mid_path = path.clone();
+    crate::mouse_area::MouseArea::new(
+        widget::button::custom(
+            widget::row::with_children(vec![
+                icon::icon(icon_handle).size(16).into(),
+                widget::text(name).into(),
+            ])
+            .spacing(space_xxs)
+            .align_y(Alignment::Center),
+        )
+        .on_press(Message::TabMessage(
+            None,
+            tab::Message::Location(Location::Path(path)),
+        ))
+        .padding([space_xxxs, space_xs])
+        .class(if selected {
+            wmde_nav_selected_style()
+        } else {
+            theme::Button::ListItem([2.0; 4])
+        })
+        .width(Length::Fill),
+    )
+    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_path.clone()))
+    .into()
 }

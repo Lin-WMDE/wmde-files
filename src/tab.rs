@@ -157,7 +157,6 @@ fn button_appearance(
     cut: bool,
     focused: bool,
     accent: bool,
-    condensed_radius: bool,
     desktop: bool,
 ) -> widget::button::Style {
     let cosmic = theme.cosmic();
@@ -205,7 +204,6 @@ fn button_appearance(
         appearance.border_color = Color::TRANSPARENT;
     }
     // WMDE: selection/hover highlight rounding fixed at 2 (general rounding stays 4)
-    let _ = condensed_radius;
     appearance.border_radius = [2.0; 4].into();
     appearance
 }
@@ -215,7 +213,6 @@ fn button_style(
     highlighted: bool,
     cut: bool,
     accent: bool,
-    condensed_radius: bool,
     desktop: bool,
 ) -> theme::Button {
     //TODO: move to libcosmic?
@@ -228,7 +225,6 @@ fn button_style(
                 cut,
                 focused,
                 accent,
-                condensed_radius,
                 desktop,
             )
         }),
@@ -240,7 +236,6 @@ fn button_style(
                 cut,
                 false,
                 accent,
-                condensed_radius,
                 desktop,
             )
         }),
@@ -252,7 +247,6 @@ fn button_style(
                 cut,
                 focused,
                 accent,
-                condensed_radius,
                 desktop,
             )
         }),
@@ -264,7 +258,6 @@ fn button_style(
                 cut,
                 focused,
                 accent,
-                condensed_radius,
                 desktop,
             )
         }),
@@ -277,19 +270,8 @@ pub fn wmde_input_style() -> theme::TextInput {
     fn like_address(mut a: Appearance) -> Appearance {
         a.border_radius = [2.0_f32; 4].into();
         a.border_width = 1.0;
-        a.border_color = Color {
-            r: 0.286_274_5,
-            g: 0.286_274_5,
-            b: 0.286_274_5,
-            a: 1.0,
-        };
-        a.background = Color {
-            r: 0.101_960_79,
-            g: 0.101_960_79,
-            b: 0.101_960_79,
-            a: 1.0,
-        }
-        .into();
+        a.border_color = crate::app::WMDE_FIELD_BORDER;
+        a.background = crate::app::WMDE_SURFACE.into();
         a
     }
     theme::TextInput::Custom {
@@ -298,6 +280,24 @@ pub fn wmde_input_style() -> theme::TextInput {
         hovered: Box::new(|t| like_address(StyleSheet::hovered(t, &theme::TextInput::Default))),
         focused: Box::new(|t| like_address(StyleSheet::focused(t, &theme::TextInput::Default))),
         disabled: Box::new(|t| like_address(StyleSheet::disabled(t, &theme::TextInput::Default))),
+    }
+}
+
+// WMDE: single source of truth for a location's icon, used by BOTH the address-bar
+// leading icon and the tab icon so they always match. Exhaustive over Location.
+pub fn wmde_location_icon(location: &Location) -> widget::icon::Handle {
+    match location {
+        Location::Path(p) | Location::Desktop(p, ..) => folder_icon_symbolic(p, 16),
+        Location::Trash => Trash::icon_symbolic(16),
+        Location::Recents => widget::icon::from_name("document-open-recent-symbolic")
+            .size(16)
+            .handle(),
+        Location::Network(..) => widget::icon::from_name("network-workgroup-symbolic")
+            .size(16)
+            .handle(),
+        Location::Search(..) => widget::icon::from_name("system-search-symbolic")
+            .size(16)
+            .handle(),
     }
 }
 
@@ -5603,16 +5603,7 @@ impl Tab {
 
         // WMDE: address field (breadcrumbs) framed like a Win11 input; nav buttons stay outside,
         // with a leading icon of the current location (Win11-style).
-        let loc_icon = match &self.location {
-            Location::Path(p) => folder_icon_symbolic(p, 16),
-            Location::Trash => widget::icon::from_name("user-trash-symbolic")
-                .size(16)
-                .handle(),
-            Location::Network(..) => widget::icon::from_name("network-workgroup-symbolic")
-                .size(16)
-                .handle(),
-            _ => widget::icon::from_name("folder-symbolic").size(16).handle(),
-        };
+        let loc_icon = wmde_location_icon(&self.location);
         let mut field_row = widget::row::with_capacity(children.len() + 4)
             .align_y(Alignment::Center);
         field_row = field_row.push(widget::icon::icon(loc_icon).size(16));
@@ -5629,22 +5620,9 @@ impl Tab {
         );
         let crumbs = widget::container(field_row)
         .class(theme::Container::custom(|_theme| widget::container::Style {
-            background: Some(
-                Color {
-                    r: 0.101_960_79,
-                    g: 0.101_960_79,
-                    b: 0.101_960_79,
-                    a: 1.0,
-                }
-                .into(),
-            ),
+            background: Some(crate::app::WMDE_SURFACE.into()),
             border: Border {
-                color: Color {
-                    r: 0.286_274_5,
-                    g: 0.286_274_5,
-                    b: 0.286_274_5,
-                    a: 1.0,
-                },
+                color: crate::app::WMDE_FIELD_BORDER,
                 width: 1.0,
                 radius: [2.0; 4].into(),
             },
@@ -5844,7 +5822,6 @@ impl Tab {
                             item.cut,
                             false,
                             false,
-                            false,
                         ))
                         .into(),
                         widget::tooltip(
@@ -5855,7 +5832,6 @@ impl Tab {
                                     item.selected,
                                     item.highlighted,
                                     item.cut,
-                                    true,
                                     true,
                                     matches!(self.mode, Mode::Desktop),
                                 )),
@@ -6011,7 +5987,6 @@ impl Tab {
                                 item.cut,
                                 false,
                                 false,
-                                false,
                             )),
                             widget::button::custom(Item::grid_display_name(
                                 item.display_name.clone(),
@@ -6023,7 +5998,6 @@ impl Tab {
                                 item.selected,
                                 item.highlighted,
                                 item.cut,
-                                true,
                                 true,
                                 false,
                             )),
@@ -6292,7 +6266,6 @@ impl Tab {
                                     item.selected,
                                     item.highlighted,
                                     item.cut,
-                                    true,
                                     true,
                                     false,
                                 )),
