@@ -288,7 +288,11 @@ pub fn wmde_input_style() -> theme::TextInput {
 pub fn wmde_location_icon(location: &Location) -> widget::icon::Handle {
     match location {
         Location::Path(p) | Location::Desktop(p, ..) => folder_icon_symbolic(p, 16),
-        Location::Trash => Trash::icon_symbolic(16),
+        // static icon (no IO): this runs every render in location_view, so avoid
+        // Trash::icon_symbolic which scans the trash dir to pick empty/full
+        Location::Trash => widget::icon::from_name("user-trash-symbolic")
+            .size(16)
+            .handle(),
         Location::Recents => widget::icon::from_name("document-open-recent-symbolic")
             .size(16)
             .handle(),
