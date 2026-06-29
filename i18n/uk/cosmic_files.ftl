@@ -394,4 +394,3 @@ mixed = Змішано
 search = Пошук
 search-placeholder = Пошук: { $name }
 search-title = Пошук «{ $term }»: { $name }
-free-caption = { $size } вільно

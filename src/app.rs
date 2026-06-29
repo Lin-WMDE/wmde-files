@@ -1832,25 +1832,9 @@ impl App {
             }
         }
         for (name, path) in drives {
-            let usage = self.wmde_disk_usage.get(&path).copied();
+            let fraction = self.wmde_disk_usage.get(&path).map(|(f, _)| *f);
             let selected = current_path.as_deref() == Some(path.as_path());
-            let dic = icon::from_name("drive-harddisk-symbolic").size(16).handle();
-            col = col.push(wmde_sidebar_entry(dic, name, path, selected));
-            if let Some((f, avail)) = usage {
-                col = col.push(
-                    widget::container(
-                        widget::progress_bar::determinate_linear(f).width(Length::Fill),
-                    )
-                    .padding([0, space_s]),
-                );
-                col = col.push(
-                    widget::container(widget::text::caption(fl!(
-                        "free-caption",
-                        size = wmde_fmt_bytes(avail)
-                    )))
-                    .padding([0, space_s]),
-                );
-            }
+            col = col.push(wmde_drive_entry(name, path, selected, fraction));
         }
 
         widget::scrollable(col)
@@ -7470,22 +7454,6 @@ fn wmde_fs_usage(path: &std::path::Path) -> Option<(f32, u64)> {
     Some((((total - avail) / total) as f32, avail as u64))
 }
 
-// WMDE: human-readable bytes
-fn wmde_fmt_bytes(bytes: u64) -> String {
-    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
-    let mut b = bytes as f64;
-    let mut i = 0;
-    while b >= 1024.0 && i < UNITS.len() - 1 {
-        b /= 1024.0;
-        i += 1;
-    }
-    if i == 0 {
-        format!("{} {}", bytes, UNITS[0])
-    } else {
-        format!("{:.1} {}", b, UNITS[i])
-    }
-}
-
 // WMDE: icon for a tab based on its location
 fn wmde_tab_icon(location: &Location) -> widget::Icon {
     icon::icon(tab::wmde_location_icon(location)).size(16)
@@ -7526,6 +7494,60 @@ fn wmde_sidebar_entry(
             theme::Button::ListItem([2.0; 4])
         })
         .width(Length::Fill),
+    )
+    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_path.clone()))
+    .into()
+}
+
+// WMDE: a drive sidebar entry - label plus an optional thin disk-usage bar, all inside
+// ONE clickable button (the bar is part of the item; no separate "free" caption).
+fn wmde_drive_entry(
+    name: String,
+    path: PathBuf,
+    selected: bool,
+    fraction: Option<f32>,
+) -> Element<'static, Message> {
+    let cosmic_theme::Spacing {
+        space_xxxs,
+        space_xxs,
+        space_xs,
+        ..
+    } = theme::spacing();
+    let mid_path = path.clone();
+    let label = widget::row::with_children(vec![
+        icon::icon(icon::from_name("drive-harddisk-symbolic").size(16).handle())
+            .size(16)
+            .into(),
+        widget::text(name).into(),
+    ])
+    .spacing(space_xxs)
+    .align_y(Alignment::Center);
+    let content: Element<'static, Message> = match fraction {
+        Some(f) => widget::column::with_children(vec![
+            label.into(),
+            // thinner than the default 4px girth via a fixed-height wrapper
+            widget::container(widget::progress_bar::determinate_linear(f).width(Length::Fill))
+                .width(Length::Fill)
+                .height(Length::Fixed(3.0))
+                .into(),
+        ])
+        .spacing(space_xxxs)
+        .into(),
+        None => label.into(),
+    };
+    crate::mouse_area::MouseArea::new(
+        widget::button::custom(content)
+            .on_press(Message::TabMessage(
+                None,
+                tab::Message::Location(Location::Path(path)),
+            ))
+            .padding([space_xxxs, space_xs])
+            .class(if selected {
+                wmde_nav_selected_style()
+            } else {
+                theme::Button::ListItem([2.0; 4])
+            })
+            .width(Length::Fill),
     )
     .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_path.clone()))
     .into()

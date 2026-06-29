@@ -396,4 +396,3 @@ sort-largest-to-smallest = Largest to smallest
 search = Search
 search-placeholder = Search { $name }
 search-title = Search "{ $term }": { $name }
-free-caption = { $size } free
