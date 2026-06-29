@@ -6506,7 +6506,24 @@ impl Application for App {
                 .spacing(space_xxs)
                 .padding([0, space_xxxs, 0, 0])
                 .into(),
-                widget::row::with_children(vec![self.wmde_sidebar(), content]).into(),
+                widget::row::with_children(vec![
+                    self.wmde_sidebar(),
+                    // WMDE: thin vertical separator between the sidebar and content (Win11)
+                    widget::container(widget::space::vertical())
+                        .width(Length::Fixed(1.0))
+                        .height(Length::Fill)
+                        .class(theme::Container::custom(|theme| {
+                            widget::container::Style {
+                                background: Some(cosmic::iced::Background::Color(
+                                    cosmic::iced::Color::from(theme.cosmic().background.divider),
+                                )),
+                                ..Default::default()
+                            }
+                        }))
+                        .into(),
+                    content,
+                ])
+                .into(),
             ])
             .width(Length::Fill)
             .height(Length::Fill),
