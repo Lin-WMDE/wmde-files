@@ -2466,6 +2466,8 @@ impl Application for App {
         match flags.mode {
             Mode::App => {
                 core.window.show_context = flags.config.show_details;
+                // WMDE: edge-to-edge body (drop libcosmic's border_padding around content)
+                core.window.content_container = false;
             }
             Mode::Desktop => {
                 core.window.content_container = false;
@@ -6566,14 +6568,22 @@ impl Application for App {
                 .map(move |m| Message::TabMessage(Some(active), m)),
             None => widget::space::horizontal().into(),
         };
-        widget::column::with_children(vec![
-            menu.into(),
-            widget::container(location_bar)
-                .class(theme::Container::Primary)
-                .width(Length::Fill)
-                .into(),
-            widget::row::with_children(vec![self.wmde_sidebar(), content]).into(),
-        ])
+        widget::container(
+            widget::column::with_children(vec![
+                menu.into(),
+                widget::container(location_bar)
+                    .class(theme::Container::Primary)
+                    .width(Length::Fill)
+                    .into(),
+                widget::row::with_children(vec![self.wmde_sidebar(), content]).into(),
+            ])
+            .width(Length::Fill)
+            .height(Length::Fill),
+        )
+        // WMDE: paint the window background ourselves since content_container is off
+        .class(theme::Container::WindowBackground)
+        .width(Length::Fill)
+        .height(Length::Fill)
         .into()
     }
 

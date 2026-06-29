@@ -5361,9 +5361,10 @@ impl Tab {
         .height(Length::Fixed((space_m + 4).into()))
         .padding([0, space_xxs]);
 
+        // WMDE: neutral Win11-style separator under the navigation row (was accent blue)
         let accent_rule =
             rule::horizontal(1).class(theme::Rule::Custom(Box::new(|theme| rule::Style {
-                color: theme.cosmic().accent_color().into(),
+                color: theme.cosmic().background.divider.into(),
                 radius: 0.0.into(),
                 fill_mode: rule::FillMode::Full,
                 snap: true,
@@ -5442,7 +5443,9 @@ impl Tab {
                     );
                 }
                 row = row.push(popover);
-                let mut column = widget::column::with_capacity(4).padding([0, 0]);
+                let mut column = widget::column::with_capacity(4)
+            .padding([0, 0])
+            .width(Length::Fill);
                 column = column.push(row);
                 column = column.push(accent_rule);
                 if self.config.view == View::List && !condensed {
@@ -5578,7 +5581,9 @@ impl Tab {
         }
 
         row = row.extend(children);
-        let mut column = widget::column::with_capacity(4).padding([0, 0]);
+        let mut column = widget::column::with_capacity(4)
+            .padding([0, 0])
+            .width(Length::Fill);
         column = column.push(row);
         column = column.push(accent_rule);
 
