@@ -1185,6 +1185,7 @@ impl App {
             .tab_model
             .insert()
             .text(tab.title())
+            .icon(wmde_tab_icon(&tab.location))
             .data(tab)
             .closable();
 
@@ -1647,6 +1648,7 @@ impl App {
         }
         if let Some((title, location, focus_search)) = title_location_opt {
             self.tab_model.text_set(tab, title);
+            self.tab_model.icon_set(tab, wmde_tab_icon(&location));
             return Task::batch([
                 self.update_title(),
                 self.update_watcher(),
@@ -1751,6 +1753,117 @@ impl App {
         }
 
         Task::none()
+    }
+
+    fn wmde_sidebar(&self) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_xxxs, space_xxs, space_xs, space_s, ..
+        } = theme::spacing();
+        let current_path = self
+            .tab_model
+            .active_data::<Tab>()
+            .and_then(|t| match &t.location {
+                Location::Path(p) => Some(p.clone()),
+                _ => None,
+            });
+        let mut col = widget::column::with_capacity(self.config.favorites.len() + 2)
+            .spacing(space_xxxs)
+            .padding([space_xxxs, space_xxs]);
+
+        for favorite in self.config.favorites.iter() {
+            if let Some(path) = favorite.path_opt() {
+                let name = if matches!(favorite, Favorite::Home) {
+                    fl!("home")
+                } else if let Favorite::Network { name, .. } = favorite {
+                    name.clone()
+                } else if let Some(file_name) = path.file_name().and_then(|x| x.to_str()) {
+                    file_name.to_string()
+                } else {
+                    fl!("filesystem")
+                };
+                let ic = icon::icon(if path.is_dir() {
+                    tab::folder_icon_symbolic(&path, 16)
+                } else {
+                    icon::from_name("text-x-generic-symbolic").size(16).handle()
+                })
+                .size(16);
+                col = col.push(
+                    widget::button::custom(
+                        widget::row::with_children(vec![ic.into(), widget::text(name).into()])
+                            .spacing(space_xxs)
+                            .align_y(Alignment::Center),
+                    )
+                    .on_press(Message::TabMessage(
+                        None,
+                        tab::Message::Location(Location::Path(path.clone())),
+                    ))
+                    .selected(current_path.as_deref() == Some(path.as_path()))
+                    .padding([space_xxxs, space_xs])
+                    .class(theme::Button::ListItem([4.0; 4]))
+                    .width(Length::Fill),
+                );
+            }
+        }
+
+        // --- WMDE: devices with disk-usage bars ---
+        col = col.push(
+            widget::container(widget::divider::horizontal::default())
+                .padding([space_xs, space_s]),
+        );
+
+        let mut drives: Vec<(String, std::path::PathBuf)> = Vec::new();
+        drives.push((fl!("filesystem"), std::path::PathBuf::from("/")));
+        for (_key, items) in self.mounter_items.iter() {
+            for item in items.iter() {
+                if item.is_mounted() {
+                    if let Some(path) = item.path() {
+                        drives.push((item.name(), path));
+                    }
+                }
+            }
+        }
+        for (name, path) in drives {
+            let usage = wmde_fs_usage(&path);
+            let dic = icon::icon(
+                icon::from_name("drive-harddisk-symbolic").size(16).handle(),
+            )
+            .size(16);
+            col = col.push(
+                widget::button::custom(
+                    widget::row::with_children(vec![dic.into(), widget::text(name).into()])
+                        .spacing(space_xxs)
+                        .align_y(Alignment::Center),
+                )
+                .on_press(Message::TabMessage(
+                    None,
+                    tab::Message::Location(Location::Path(path.clone())),
+                ))
+                .selected(current_path.as_deref() == Some(path.as_path()))
+                .padding([space_xxxs, space_xs])
+                .class(theme::Button::ListItem([4.0; 4]))
+                .width(Length::Fill),
+            );
+            if let Some((f, avail)) = usage {
+                col = col.push(
+                    widget::container(
+                        widget::progress_bar::determinate_linear(f).width(Length::Fill),
+                    )
+                    .padding([0, space_s]),
+                );
+                col = col.push(
+                    widget::container(widget::text::caption(format!(
+                        "{} free",
+                        wmde_fmt_bytes(avail)
+                    )))
+                    .padding([0, space_s]),
+                );
+            }
+        }
+
+        widget::scrollable(col)
+            .height(Length::Fill)
+            .width(Length::Fixed(208.0))
+            .into()
     }
 
     fn update_nav_model(&mut self) {
@@ -2501,37 +2614,8 @@ impl Application for App {
     }
 
     fn nav_bar(&self) -> Option<Element<'_, cosmic::Action<Self::Message>>> {
-        if !self.core.nav_bar_active() {
-            return None;
-        }
-
-        let nav_model = self.nav_model()?;
-
-        let mut nav = cosmic::widget::nav_bar(nav_model, |entity| {
-            cosmic::Action::Cosmic(cosmic::app::Action::NavBar(entity))
-        })
-        .drag_id(self.nav_drag_id)
-        .on_dnd_enter(|entity, _| cosmic::Action::App(Message::DndEnterNav(entity)))
-        .on_dnd_leave(|_| cosmic::Action::App(Message::DndExitNav))
-        .on_dnd_drop(|entity, data, action| {
-            cosmic::Action::App(Message::DndDropNav(entity, data, action))
-        })
-        .on_context(|entity| cosmic::Action::App(Message::NavBarContext(entity)))
-        .on_close(|entity| cosmic::Action::App(Message::NavBarClose(entity)))
-        .on_middle_press(|entity| {
-            cosmic::Action::App(Message::NavMenuAction(NavMenuAction::OpenInNewTab(entity)))
-        })
-        .context_menu(self.nav_context_menu(self.nav_bar_context_id))
-        .close_icon(icon::from_name("media-eject-symbolic").size(16).icon())
-        .into_container();
-
-        if !self.core.is_condensed() {
-            nav = nav.max_width(280);
-        }
-
-        Some(Element::from(
-            nav.width(Length::Shrink).height(Length::Fill),
-        ))
+        // WMDE: sidebar is custom-rendered in view()
+        None
     }
 
     fn nav_context_menu(
@@ -2628,10 +2712,8 @@ impl Application for App {
     }
 
     fn nav_model(&self) -> Option<&segmented_button::SingleSelectModel> {
-        match self.mode {
-            Mode::App => Some(&self.nav_model),
-            Mode::Desktop => None,
-        }
+        // WMDE: custom sidebar rendered in view(); disable libcosmic nav + hamburger
+        None
     }
 
     fn on_nav_select(&mut self, entity: Entity) -> Task<Self::Message> {
@@ -6365,14 +6447,26 @@ impl Application for App {
     }
 
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
-        vec![menu::menu_bar(
-            &self.core,
-            self.tab_model.active_data::<Tab>(),
-            &self.config,
-            &self.modifiers,
-            &self.key_binds,
-            self.clipboard_has_content(),
-        )]
+        // WMDE: browser-style tabs at the left of the CSD title bar (Win11-like)
+        let cosmic_theme::Spacing { space_xxs, .. } = theme::spacing();
+        vec![
+            widget::tab_bar::horizontal(&self.tab_model)
+                .button_height(32)
+                .button_spacing(space_xxs)
+                .enable_tab_drag(String::from("x-cosmic-files/tab-dnd"))
+                .on_reorder(Message::ReorderTab)
+                .tab_drag_threshold(25.)
+                .on_activate(Message::TabActivate)
+                .on_close(|entity| Message::TabClose(Some(entity)))
+                .on_dnd_enter(Message::DndEnterTab)
+                .on_dnd_leave(|_| Message::DndExitTab)
+                .on_dnd_drop(|entity, data, action| {
+                    Message::DndDropTab(entity, data, action)
+                })
+                .drag_id(self.tab_drag_id)
+                .width(Length::Shrink)
+                .into(),
+        ]
     }
 
     fn header_end(&self) -> Vec<Element<'_, Self::Message>> {
@@ -6418,6 +6512,7 @@ impl Application for App {
 
         let mut tab_column = widget::column::with_capacity(4);
 
+
         if self.core.is_condensed()
             && let Some(term) = self.search_get()
         {
@@ -6433,29 +6528,7 @@ impl Application for App {
             );
         }
 
-        if self.tab_model.len() > 1 {
-            tab_column = tab_column.push(
-                widget::container(
-                    widget::tab_bar::horizontal(&self.tab_model)
-                        .button_height(32)
-                        .button_spacing(space_xxs)
-                        .enable_tab_drag(String::from("x-cosmic-files/tab-dnd"))
-                        .on_reorder(Message::ReorderTab)
-                        .tab_drag_threshold(25.)
-                        .on_activate(Message::TabActivate)
-                        .on_close(|entity| Message::TabClose(Some(entity)))
-                        .on_dnd_enter(Message::DndEnterTab)
-                        .on_dnd_leave(|_| Message::DndExitTab)
-                        .on_dnd_drop(|entity, data, action| {
-                            Message::DndDropTab(entity, data, action)
-                        })
-                        .drag_id(self.tab_drag_id),
-                )
-                .class(style::Container::Background)
-                .width(Length::Fill)
-                .padding([0, space_s]),
-            );
-        }
+        // WMDE: tabs moved to title bar (header_center)
 
         let entity = self.tab_model.active();
         if let Some(tab) = self.tab_model.data::<Tab>(entity) {
@@ -6477,9 +6550,31 @@ impl Application for App {
 
         let content: Element<_> = tab_column.into();
 
-        // Uncomment to debug layout:
-        //content.explain(cosmic::iced::Color::WHITE)
-        content
+        // WMDE: full-width menu above [custom sidebar | content]
+        let menu = menu::menu_bar(
+            &self.core,
+            self.tab_model.active_data::<Tab>(),
+            &self.config,
+            &self.modifiers,
+            &self.key_binds,
+            self.clipboard_has_content(),
+        );
+        let active = self.tab_model.active();
+        let location_bar: Element<_> = match self.tab_model.data::<Tab>(active) {
+            Some(tab) => tab
+                .location_view()
+                .map(move |m| Message::TabMessage(Some(active), m)),
+            None => widget::space::horizontal().into(),
+        };
+        widget::column::with_children(vec![
+            menu.into(),
+            widget::container(location_bar)
+                .class(theme::Container::Primary)
+                .width(Length::Fill)
+                .into(),
+            widget::row::with_children(vec![self.wmde_sidebar(), content]).into(),
+        ])
+        .into()
     }
 
     fn view_window(&self, id: WindowId) -> Element<'_, Self::Message> {
@@ -7290,4 +7385,49 @@ pub(crate) mod test_utils {
             tab_path.display()
         );
     }
+}
+
+// WMDE: filesystem (usage fraction 0.0..=1.0, available bytes) via statvfs
+fn wmde_fs_usage(path: &std::path::Path) -> Option<(f32, u64)> {
+    use std::os::unix::ffi::OsStrExt;
+    let cpath = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(cpath.as_ptr(), &mut stat) } != 0 {
+        return None;
+    }
+    let total = stat.f_blocks as f64 * stat.f_frsize as f64;
+    let avail = stat.f_bavail as f64 * stat.f_frsize as f64;
+    if total <= 0.0 {
+        return None;
+    }
+    Some((((total - avail) / total) as f32, avail as u64))
+}
+
+// WMDE: human-readable bytes
+fn wmde_fmt_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut b = bytes as f64;
+    let mut i = 0;
+    while b >= 1024.0 && i < UNITS.len() - 1 {
+        b /= 1024.0;
+        i += 1;
+    }
+    if i == 0 {
+        format!("{} {}", bytes, UNITS[0])
+    } else {
+        format!("{:.1} {}", b, UNITS[i])
+    }
+}
+
+// WMDE: icon for a tab based on its location
+fn wmde_tab_icon(location: &Location) -> widget::Icon {
+    let handle = match location {
+        Location::Path(p) => tab::folder_icon_symbolic(p, 16),
+        Location::Trash => Trash::icon_symbolic(16),
+        Location::Recents => icon::from_name("document-open-recent-symbolic")
+            .size(16)
+            .handle(),
+        _ => icon::from_name("folder-symbolic").size(16).handle(),
+    };
+    icon::icon(handle).size(16)
 }

@@ -5277,7 +5277,8 @@ impl Tab {
 
         let mut row = widget::row::with_capacity(5)
             .align_y(Alignment::Center)
-            .padding([space_xxxs, 0]);
+            .width(Length::Fill)
+            .padding([space_xxxs, space_s]);
         let mut w = 0.0;
 
         let mut prev_button =
@@ -5298,6 +5299,14 @@ impl Tab {
             next_button = next_button.on_press(Message::GoNext);
         }
         row = row.push(next_button);
+        w += f32::from(space_xxs).mul_add(2.0, 16.0);
+
+        row = row.push(
+            widget::button::custom(widget::icon::from_name("go-up-symbolic").size(16))
+                .padding(space_xxs)
+                .class(theme::Button::Icon)
+                .on_press(Message::LocationUp),
+        );
         w += f32::from(space_xxs).mul_add(2.0, 16.0);
 
         row = row.push(widget::space::horizontal().width(Length::Fixed(space_s.into())));
@@ -5433,7 +5442,7 @@ impl Tab {
                     );
                 }
                 row = row.push(popover);
-                let mut column = widget::column::with_capacity(4).padding([0, space_s]);
+                let mut column = widget::column::with_capacity(4).padding([0, 0]);
                 column = column.push(row);
                 column = column.push(accent_rule);
                 if self.config.view == View::List && !condensed {
@@ -5442,17 +5451,6 @@ impl Tab {
                 }
                 return column.into();
             }
-        } else if let Some(path) = self.location.path_opt() {
-            row = row.push(
-                crate::mouse_area::MouseArea::new(
-                    widget::button::custom(widget::icon::from_name("edit-symbolic").size(16))
-                        .padding(space_xxs)
-                        .class(theme::Button::Icon)
-                        .on_press(Message::EditLocation(Some(self.location.clone().into()))),
-                )
-                .on_middle_press(move |_| Message::OpenInNewTab(path.clone())),
-            );
-            w += f32::from(space_xxs).mul_add(2.0, 16.0);
         }
 
         let mut children: Vec<Element<_>> = Vec::new();
@@ -5580,7 +5578,7 @@ impl Tab {
         }
 
         row = row.extend(children);
-        let mut column = widget::column::with_capacity(4).padding([0, space_s]);
+        let mut column = widget::column::with_capacity(4).padding([0, 0]);
         column = column.push(row);
         column = column.push(accent_rule);
 
@@ -6395,11 +6393,8 @@ impl Tab {
             ..
         } = theme::spacing();
 
-        let location_view_opt = if matches!(self.mode, Mode::Desktop) {
-            None
-        } else {
-            Some(self.location_view())
-        };
+        // WMDE: location bar rendered app-level (full width under menu)
+        let location_view_opt: Option<Element<'_, Message>> = None;
         let (drag_list, mut item_view, can_scroll) = match self.config.view {
             View::Grid => self.grid_view(),
             View::List => self.list_view(),
