@@ -182,7 +182,6 @@ pub enum Action {
     SelectLast,
     SelectAll,
     SetSort(HeadingOptions, bool),
-    Settings,
     TabClose,
     TabNew,
     TabNext,
@@ -261,7 +260,6 @@ impl Action {
             Self::SetSort(sort, dir) => {
                 Message::TabMessage(entity_opt, tab::Message::SetSort(*sort, *dir))
             }
-            Self::Settings => Message::ToggleContextPage(ContextPage::Settings),
             Self::TabClose => Message::TabClose(entity_opt),
             Self::TabNew => Message::TabNew,
             Self::TabNext => Message::TabNext,
@@ -492,7 +490,6 @@ pub enum ContextPage {
     EditHistory,
     NetworkDrive,
     Preview(Option<Entity>, PreviewKind),
-    Settings,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
@@ -2316,76 +2313,6 @@ impl App {
                 [0, space_l, space_l, space_l]
             })
             .into()
-    }
-
-    fn settings(&self) -> Element<'_, Message> {
-        let tab_config = self.config.tab;
-
-        // TODO: Should dialog be updated here too?
-        settings::view_column(vec![
-            settings::section()
-                .title(fl!("appearance"))
-                .add({
-                    let app_theme_selected = match self.config.app_theme {
-                        AppTheme::Dark => 1,
-                        AppTheme::Light => 2,
-                        AppTheme::System => 0,
-                    };
-                    settings::item::builder(fl!("theme")).control(widget::dropdown(
-                        &self.app_themes,
-                        Some(app_theme_selected),
-                        move |index| {
-                            Message::AppTheme(match index {
-                                1 => AppTheme::Dark,
-                                2 => AppTheme::Light,
-                                _ => AppTheme::System,
-                            })
-                        },
-                    ))
-                })
-                .into(),
-            settings::section()
-                .title(fl!("type-to-search"))
-                .add(
-                    settings::item::builder(fl!("type-to-search-recursive")).radio(
-                        TypeToSearch::Recursive,
-                        Some(self.config.type_to_search),
-                        Message::SetTypeToSearch,
-                    ),
-                )
-                .add(
-                    settings::item::builder(fl!("type-to-search-enter-path")).radio(
-                        TypeToSearch::EnterPath,
-                        Some(self.config.type_to_search),
-                        Message::SetTypeToSearch,
-                    ),
-                )
-                .add(settings::item::builder(fl!("type-to-search-select")).radio(
-                    TypeToSearch::SelectByPrefix,
-                    Some(self.config.type_to_search),
-                    Message::SetTypeToSearch,
-                ))
-                .into(),
-            settings::section()
-                .title(fl!("other"))
-                .add({
-                    settings::item::builder(fl!("single-click")).toggler(
-                        tab_config.single_click,
-                        move |single_click| {
-                            Message::TabConfig(TabConfig {
-                                single_click,
-                                ..tab_config
-                            })
-                        },
-                    )
-                })
-                .add({
-                    settings::item::builder(fl!("show-recents"))
-                        .toggler(self.config.show_recents, Message::SetShowRecents)
-                })
-                .into(),
-        ])
-        .into()
     }
 
     // Update favorites based on renaming or moving dirs.
@@ -5574,11 +5501,6 @@ impl Application for App {
                 )
                 .actions(actions)
             }
-            ContextPage::Settings => context_drawer::context_drawer(
-                self.settings(),
-                Message::ToggleContextPage(ContextPage::Settings),
-            )
-            .title(fl!("settings")),
         })
     }
 
