@@ -389,3 +389,9 @@ context-action-confirm-warning =
 context-action = Контекстна дія
 rename-confirm = Перейменувати
 mixed = Змішано
+
+# WMDE additions (Win11-style chrome)
+search = Пошук
+search-placeholder = Пошук: { $name }
+search-title = Пошук «{ $term }»: { $name }
+free-caption = { $size } вільно

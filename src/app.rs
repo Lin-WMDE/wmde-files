@@ -1847,9 +1847,9 @@ impl App {
                     .padding([0, space_s]),
                 );
                 col = col.push(
-                    widget::container(widget::text::caption(format!(
-                        "{} free",
-                        wmde_fmt_bytes(avail)
+                    widget::container(widget::text::caption(fl!(
+                        "free-caption",
+                        size = wmde_fmt_bytes(avail)
                     )))
                     .padding([0, space_s]),
                 );
@@ -6547,6 +6547,12 @@ impl Application for App {
                 .map(move |m| Message::TabMessage(Some(active), m)),
             None => widget::space::horizontal().into(),
         };
+        // WMDE: Win11-style localized placeholder "Search <current folder>" (title() is cheap)
+        let search_placeholder = self
+            .tab_model
+            .active_data::<Tab>()
+            .map(|t| fl!("search-placeholder", name = t.title()))
+            .unwrap_or_else(|| fl!("search"));
         widget::container(
             widget::column::with_children(vec![
                 widget::container(menu)
@@ -6559,7 +6565,7 @@ impl Application for App {
                         .class(theme::Container::Transparent)
                         .width(Length::Fill)
                         .into(),
-                    widget::text_input("", self.search_get().unwrap_or_default())
+                    widget::text_input(search_placeholder, self.search_get().unwrap_or_default())
                         .leading_icon(
                             widget::icon::from_name("system-search-symbolic")
                                 .size(16)

@@ -391,3 +391,9 @@ sort-newest-first = Newest first
 sort-oldest-first = Oldest first
 sort-smallest-to-largest = Smallest to largest
 sort-largest-to-smallest = Largest to smallest
+
+# WMDE additions (Win11-style chrome)
+search = Search
+search-placeholder = Search { $name }
+search-title = Search "{ $term }": { $name }
+free-caption = { $size } free

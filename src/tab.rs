@@ -1661,8 +1661,7 @@ impl Location {
                     SearchLocation::Recents => fl!("recents"),
                 };
 
-                //TODO: translate
-                format!("Search \"{term}\": {name}")
+                fl!("search-title", term = term.as_str(), name = name)
             }
             Self::Trash => {
                 fl!("trash")
