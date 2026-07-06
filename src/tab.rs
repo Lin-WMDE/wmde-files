@@ -2225,10 +2225,10 @@ impl ItemThumbnail {
         for thumbnailer in thumbnailer(mime) {
             let is_evince = thumbnailer.exec.starts_with("evince-thumbnailer ");
             let prefix = if is_evince {
-                //TODO: apparmor config for evince-thumbnailer does not allow /tmp/cosmic-files*
+                //TODO: apparmor config for evince-thumbnailer does not allow /tmp/wmde-files*
                 "gnome-desktop-"
             } else {
-                "cosmic-files-"
+                "wmde-files-"
             };
 
             // It's preferable to create the tempfile in the same directory as the final cached
@@ -7531,7 +7531,7 @@ mod tests {
         let fs = simple_fs(NUM_FILES, NUM_HIDDEN, NUM_DIRS, NUM_NESTED, NAME_LEN)?;
         let path = fs.path();
 
-        // Read directory entries and sort as cosmic-files does
+        // Read directory entries and sort as wmde-files does
         let entries = read_dir_sorted(path)?;
 
         debug!("Calling scan_path(\"{}\")", path.display());

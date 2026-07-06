@@ -1,7 +1,7 @@
 use cosmic::app::{self, Core, Settings, Task};
 use cosmic::iced::{Subscription, window};
 use cosmic::{Application, Element, executor, widget};
-use cosmic_files::dialog::{
+use wmde_files::dialog::{
     Dialog, DialogChoice, DialogChoiceOption, DialogFilter, DialogFilterPattern, DialogKind,
     DialogMessage, DialogResult, DialogSettings,
 };
@@ -50,7 +50,7 @@ impl Application for App {
     type Flags = ();
     type Message = Message;
 
-    const APP_ID: &'static str = "com.system76.CosmicFilesDialogExample";
+    const APP_ID: &'static str = "fun.wmde.files.dialog.example";
 
     fn core(&self) -> &Core {
         &self.core

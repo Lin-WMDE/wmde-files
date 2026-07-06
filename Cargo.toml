@@ -1,10 +1,12 @@
 [package]
-name = "cosmic-files"
+name = "wmde-files"
 version = "1.2.0"
 authors = ["Jeremy Soller <jeremy@system76.com>"]
 edition = "2024"
 license = "GPL-3.0-only"
 rust-version = "1.93"
+repository = "https://github.com/Lin-WMDE/wmde-files"
+homepage = "https://wmde.fun"
 
 [dependencies]
 anyhow = "1"
@@ -162,4 +164,4 @@ tokio = { version = "1", features = ["rt", "macros"] }
 # smithay-clipboard = { path = "../smithay-clipboard" }
 
 [workspace]
-members = ["cosmic-files-applet"]
+members = ["wmde-files-applet"]

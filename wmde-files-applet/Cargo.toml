@@ -1,0 +1,13 @@
+[package]
+name = "wmde-files-applet"
+version = "1.2.0"
+edition = "2024"
+
+[dependencies]
+log = "0.4"
+zbus = "4" # Blocking connection in zbus 5 hangs
+
+[dependencies.wmde-files]
+path = ".."
+default-features = false
+features = ["desktop", "gvfs", "wayland", "desktop-applet"]

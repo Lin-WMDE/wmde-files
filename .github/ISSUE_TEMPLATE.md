@@ -7,7 +7,7 @@ If this is a question or general discussion topic, please start a conversation i
 -->
 
 **Cosmic-files version:**
-<!-- (run `apt policy cosmic-files`, or the appropriate substitution for your package manager) -->
+<!-- (run `apt policy wmde-files`, or the appropriate substitution for your package manager) -->
 
 **Issue/Bug description:**
 

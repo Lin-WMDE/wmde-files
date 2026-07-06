@@ -867,7 +867,7 @@ impl App {
                             let _ = recently_used_xbel::update_recently_used(
                                 &path,
                                 Self::APP_ID.to_string(),
-                                "cosmic-files".to_string(),
+                                "wmde-files".to_string(),
                                 None,
                             );
                         }
@@ -950,7 +950,7 @@ impl App {
                                 let _ = recently_used_xbel::update_recently_used(
                                     &path.into(),
                                     Self::APP_ID.to_string(),
-                                    "cosmic-files".to_string(),
+                                    "wmde-files".to_string(),
                                     None,
                                 );
                             }
@@ -2050,8 +2050,8 @@ impl App {
 
     fn update_title(&mut self) -> Task<Message> {
         let window_title = match self.tab_model.text(self.tab_model.active()) {
-            Some(tab_title) => format!("{tab_title} — {}", fl!("cosmic-files")),
-            None => fl!("cosmic-files"),
+            Some(tab_title) => format!("{tab_title} — {}", fl!("wmde-files")),
+            None => fl!("wmde-files"),
         };
         if let Some(window_id) = self.core.main_window_id() {
             self.set_window_title(window_title, window_id)
@@ -2431,7 +2431,7 @@ impl Application for App {
     type Message = Message;
 
     /// The unique application ID to supply to the window manager.
-    const APP_ID: &'static str = "com.system76.CosmicFiles";
+    const APP_ID: &'static str = "fun.wmde.files";
 
     fn core(&self) -> &Core {
         &self.core
@@ -2485,7 +2485,7 @@ impl Application for App {
         });
 
         let about = About::default()
-            .name(fl!("cosmic-files"))
+            .name(fl!("wmde-files"))
             .icon(icon::from_name(Self::APP_ID))
             .version(env!("CARGO_PKG_VERSION"))
             .author("System76")
@@ -2494,10 +2494,10 @@ impl Application for App {
             .license_url("https://spdx.org/licenses/GPL-3.0-only")
             .developers([("Jeremy Soller", "jeremy@system76.com")])
             .links([
-                (fl!("repository"), "https://github.com/pop-os/cosmic-files"),
+                (fl!("repository"), "https://github.com/Lin-WMDE/wmde-files"),
                 (
                     fl!("support"),
-                    "https://github.com/pop-os/cosmic-files/issues",
+                    "https://github.com/Lin-WMDE/wmde-files/issues",
                 ),
             ]);
 
@@ -3122,7 +3122,7 @@ impl Application for App {
                 {
                     // Use the dialog ID to make it float
                     settings.platform_specific.application_id =
-                        "com.system76.CosmicFilesDialog".to_string();
+                        "fun.wmde.files.dialog".to_string();
                 }
 
                 let (id, command) = window::open(settings);
@@ -3150,7 +3150,7 @@ impl Application for App {
                         {
                             // Use the dialog ID to make it float
                             settings.platform_specific.application_id =
-                                "com.system76.CosmicFilesDialog".to_string();
+                                "fun.wmde.files.dialog".to_string();
                         }
 
                         let (id, command) = window::open(settings);
@@ -3272,7 +3272,7 @@ impl Application for App {
                                                 let _ = recently_used_xbel::update_recently_used(
                                                     &path,
                                                     Self::APP_ID.to_string(),
-                                                    "cosmic-files".to_string(),
+                                                    "wmde-files".to_string(),
                                                     None,
                                                 );
                                             }
@@ -4242,7 +4242,7 @@ impl Application for App {
                             {
                                 // Use the dialog ID to make it float
                                 settings.platform_specific.application_id =
-                                    "com.system76.CosmicFilesDialog".to_string();
+                                    "fun.wmde.files.dialog".to_string();
                             }
 
                             let (id, command) = window::open(settings);
@@ -4697,12 +4697,12 @@ impl Application for App {
                         },
                         tab::Command::OpenTrash => {
                             //TODO: use handler for x-scheme-handler/trash and open trash:///
-                            let mut command = process::Command::new("cosmic-files");
+                            let mut command = process::Command::new("wmde-files");
                             command.arg("--trash");
                             match spawn_detached(&mut command) {
                                 Ok(()) => {}
                                 Err(err) => {
-                                    log::warn!("failed to run cosmic-files --trash: {err}");
+                                    log::warn!("failed to run wmde-files --trash: {err}");
                                 }
                             }
                         }
@@ -5054,7 +5054,7 @@ impl Application for App {
                 }
             }
             Message::DndEnterTab(entity, mimes) => {
-                if mimes.iter().all(|m| m.as_str() != "x-cosmic-files/tab-dnd") {
+                if mimes.iter().all(|m| m.as_str() != "x-wmde-files/tab-dnd") {
                     self.tab_dnd_hover = Some((entity, Instant::now()));
                     return Task::perform(tokio::time::sleep(HOVER_DURATION), move |()| {
                         cosmic::Action::App(Message::DndHoverTabTimeout(entity))
@@ -5224,7 +5224,7 @@ impl Application for App {
                     return Task::batch([self.close_context_menus(), open_task]);
                 }
 
-                // Open the selected path in a new cosmic-files window.
+                // Open the selected path in a new wmde-files window.
                 NavMenuAction::OpenInNewWindow(entity) => 'open_in_new_window: {
                     if let Some(location) = self.nav_model.data::<Location>(entity) {
                         match env::current_exe() {
@@ -5360,7 +5360,7 @@ impl Application for App {
                                 input_zone: None,
                                 anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
                                 output: IcedOutput::Output(output),
-                                namespace: "cosmic-files-applet".into(),
+                                namespace: "wmde-files-applet".into(),
                                 size: Some((None, None)),
                                 margin: IcedMargin {
                                     top: 0,
@@ -6456,7 +6456,7 @@ impl Application for App {
                 .button_height(32)
                 .button_spacing(space_xxs)
                 .style(wmde_tab_style())
-                .enable_tab_drag(String::from("x-cosmic-files/tab-dnd"))
+                .enable_tab_drag(String::from("x-wmde-files/tab-dnd"))
                 .on_reorder(Message::ReorderTab)
                 .tab_drag_threshold(25.)
                 .on_activate(Message::TabActivate)

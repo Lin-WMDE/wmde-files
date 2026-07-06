@@ -3,9 +3,9 @@ use std::{env, fs};
 use xdgen::{App, Context, FluentString};
 
 fn main() {
-    let id = "com.system76.CosmicFiles";
+    let id = "fun.wmde.files";
     let ctx = Context::new("i18n", env::var("CARGO_PKG_NAME").unwrap()).unwrap();
-    let app = App::new(FluentString("cosmic-files"))
+    let app = App::new(FluentString("wmde-files"))
         .comment(FluentString("comment"))
         .keywords(FluentString("keywords"));
     let output = PathBuf::from("target/xdgen");

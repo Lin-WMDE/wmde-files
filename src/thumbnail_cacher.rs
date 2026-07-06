@@ -46,7 +46,7 @@ impl ThumbnailCacher {
         let thumbnail_path = thumbnail_dir.join(&thumbnail_filename);
         let thumbnail_fail_marker_path = cache_base_dir
             .join("fail")
-            .join(format!("cosmic-files-{}", env!("CARGO_PKG_VERSION")))
+            .join(format!("wmde-files-{}", env!("CARGO_PKG_VERSION")))
             .join(&thumbnail_filename);
 
         Ok(Self {
@@ -102,7 +102,7 @@ impl ThumbnailCacher {
 
     pub fn update_with_image(&self, image: DynamicImage) -> Result<&Path, Box<dyn Error>> {
         let temp_file = tempfile::Builder::new()
-            .prefix("cosmic-files-")
+            .prefix("wmde-files-")
             .tempfile_in(&self.thumbnail_dir)?;
         {
             let file = File::create(temp_file.path())?;
@@ -177,7 +177,7 @@ impl ThumbnailCacher {
         encoder.set_color(color_type);
         encoder.set_depth(bit_depth);
 
-        text_chunks.insert("Software".to_string(), "COSMIC Files".to_string());
+        text_chunks.insert("Software".to_string(), "WMDE Files".to_string());
         text_chunks.insert("Thumb::URI".to_string(), self.file_uri.clone());
         let metadata = std::fs::metadata(&self.file_path)?;
         let size = metadata.len();
@@ -353,7 +353,7 @@ pub enum CachedThumbnail {
     /// needs to be recreated with the pixel size.
     RequiresUpdate(ThumbnailSize),
     // The cached thumbnail is in a failed state.
-    // This means it failed to create by cosmic-files in the past
+    // This means it failed to create by wmde-files in the past
     // and shouldn't be tried again.
     Failed,
 }

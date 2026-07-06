@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>fun.wmde.files</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <project_group>COSMIC</project_group>
+  <developer_name>WMDE</developer_name>
+  <!-- Forked from pop-os/cosmic-files; originally created by System76 (jeremy@system76.com) -->
+  <update_contact>jeremy@system76.com</update_contact>
+  <url type="homepage">https://wmde.fun</url>
+  <url type="bugtracker">https://github.com/Lin-WMDE/wmde-files</url>
+  <name>WMDE Files</name>
+  <summary>File manager for the COSMIC desktop</summary>
+  <description>
+    <p>File manager for the COSMIC desktop</p>
+    <p xml:lang="ar">مدير ملفات لسطح مكتب COSMIC</p>
+    <p xml:lang="cs">Správce souborů pro prostředí COSMIC</p>
+    <p xml:lang="pl">Menedżer plików pulpitu COSMIC</p>
+    <p xml:lang="hu">Fájlkezelő a COSMIC asztali környezethez</p>
+    <p xml:lang="pt_BR">Gerenciador de arquivos do COSMIC</p>
+    <p xml:lang="pt">Gerenciador de arquivos do COSMIC</p>
+    <p xml:lang="sk">Správca súborov pre prostredie COSMIC</p>
+    <p xml:lang="es">Gestor de archivos de COSMIC</p>
+    <p xml:lang="it">File manager di COSMIC</p>
+    <p xml:lang="sv">Filhanterare för skrivbordsmiljön COSMIC</p>
+  </description>
+  <keywords>
+    <keyword>Folder</keyword>
+    <keyword>Manager</keyword>
+  </keywords>
+  <launchable type="desktop-id">fun.wmde.files.desktop</launchable>
+  <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/Lin-WMDE/wmde-files/master/res/icons/hicolor/256x256/apps/fun.wmde.files.svg</icon>
+  <provides>
+    <id>com.system76.CosmicApplication</id>
+    <mimetypes>
+      <mimetype>inode/directory</mimetype>
+    </mimetypes>
+    <binaries>
+      <binary>wmde-files</binary>
+    </binaries>
+  </provides>
+</component>

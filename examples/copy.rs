@@ -1,5 +1,5 @@
-use cosmic_files::operation::recursive::{Context, Method};
-use cosmic_files::operation::{Controller, ReplaceResult};
+use wmde_files::operation::recursive::{Context, Method};
+use wmde_files::operation::{Controller, ReplaceResult};
 use std::error::Error;
 use std::io;
 use std::path::PathBuf;
