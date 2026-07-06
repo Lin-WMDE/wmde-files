@@ -77,7 +77,9 @@ default-features = false
 features = ["fs", "io", "macros", "polling", "runtime"]
 
 [dependencies.libcosmic]
-git = "https://github.com/pop-os/libcosmic.git"
+# WMDE fork of pop-os/libcosmic (branch wmde): 18a7a75e (COSMIC 1.2) + header_padding theme field
+git = "https://github.com/Lin-WMDE/libcosmic.git"
+branch = "wmde"
 default-features = false
 #TODO: a11y feature crashes
 features = [

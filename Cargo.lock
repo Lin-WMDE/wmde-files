@@ -1351,14 +1351,14 @@ dependencies = [
 [[package]]
 name = "cosmic-config"
 version = "1.0.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "atomicwrites",
- "cosmic-config-derive",
+ "cosmic-config-derive 1.0.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "cosmic-settings-daemon",
  "dirs 6.0.0",
  "futures-util",
- "iced_futures",
+ "iced_futures 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "known-folders",
  "notify",
  "ron 0.12.2",
@@ -1370,90 +1370,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmic-config"
+version = "1.0.0"
+source = "git+https://github.com/pop-os/libcosmic.git#ee5d965983957271cf759fd76e3e4eed4f188d35"
+dependencies = [
+ "atomicwrites",
+ "cosmic-config-derive 1.0.0 (git+https://github.com/pop-os/libcosmic.git)",
+ "dirs 6.0.0",
+ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic.git)",
+ "known-folders",
+ "notify",
+ "ron 0.12.2",
+ "serde",
+ "tracing",
+ "xdg",
+]
+
+[[package]]
 name = "cosmic-config-derive"
 version = "1.0.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "quote",
  "syn",
 ]
 
 [[package]]
-name = "cosmic-files"
-version = "1.2.0"
+name = "cosmic-config-derive"
+version = "1.0.0"
+source = "git+https://github.com/pop-os/libcosmic.git#ee5d965983957271cf759fd76e3e4eed4f188d35"
 dependencies = [
- "anyhow",
- "atomic_float",
- "bstr",
- "bzip2",
- "compio",
- "cosmic-client-toolkit",
- "cosmic-mime-apps",
- "dirs 6.0.0",
- "fastrand",
- "filetime",
- "flate2",
- "fork",
- "gio",
- "glib",
- "glob",
- "i18n-embed",
- "i18n-embed-fl",
- "icu",
- "ignore",
- "image",
- "jiff",
- "jiff-icu",
- "jxl-oxide",
- "libc",
- "libcosmic",
- "log",
- "lzma-rust2",
- "md-5",
- "mime_guess",
- "notify-debouncer-full",
- "notify-rust",
- "num_cpus",
- "num_enum",
- "open",
- "ordermap",
- "paste",
- "png 0.18.1",
- "procfs",
- "recently-used-xbel",
- "regex",
- "rust-embed",
- "rustc-hash 2.1.2",
- "serde",
- "sha2 0.10.9",
- "shlex 1.3.0",
- "slotmap",
- "tar",
- "tempfile",
- "test-log",
- "thiserror 2.0.18",
- "tikv-jemallocator",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "trash",
- "url",
- "uzers",
- "walkdir",
- "wayland-client",
- "xdg",
- "xdg-mime",
- "xdgen",
- "zip",
-]
-
-[[package]]
-name = "cosmic-files-applet"
-version = "1.2.0"
-dependencies = [
- "cosmic-files",
- "log",
- "zbus 4.4.0",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1498,9 +1446,9 @@ dependencies = [
 [[package]]
 name = "cosmic-settings-config"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-settings-daemon#276fef9834b05c57b67e8ba36b74bea1ba690cee"
+source = "git+https://github.com/pop-os/cosmic-settings-daemon#24ab5c28eb5876665752cd5e9405b7de17e2b99a"
 dependencies = [
- "cosmic-config",
+ "cosmic-config 1.0.0 (git+https://github.com/pop-os/libcosmic.git)",
  "ron 0.11.0",
  "serde",
  "serde_with",
@@ -1543,11 +1491,11 @@ dependencies = [
 [[package]]
 name = "cosmic-theme"
 version = "1.0.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "almost",
  "configparser",
- "cosmic-config",
+ "cosmic-config 1.0.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "csscolorparser",
  "dirs 6.0.0",
  "palette",
@@ -2853,7 +2801,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.18",
- "windows 0.62.2",
+ "windows 0.56.0",
 ]
 
 [[package]]
@@ -3076,7 +3024,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.56.0",
 ]
 
 [[package]]
@@ -3091,13 +3039,13 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "dnd",
  "iced_accessibility",
- "iced_core",
+ "iced_core 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "iced_debug",
- "iced_futures",
+ "iced_futures 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "iced_program",
  "iced_renderer",
  "iced_runtime",
@@ -3112,7 +3060,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -3121,7 +3069,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "bitflags 2.13.0",
  "bytes",
@@ -3144,22 +3092,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced_core"
+version = "0.14.0"
+source = "git+https://github.com/pop-os/libcosmic.git#ee5d965983957271cf759fd76e3e4eed4f188d35"
+dependencies = [
+ "bitflags 2.13.0",
+ "bytes",
+ "dnd",
+ "glam",
+ "lilt",
+ "log",
+ "mime 0.1.0",
+ "num-traits",
+ "palette",
+ "raw-window-handle",
+ "rustc-hash 2.1.2",
+ "smol_str",
+ "thiserror 2.0.18",
+ "unicode-segmentation",
+ "web-time",
+ "window_clipboard",
+]
+
+[[package]]
 name = "iced_debug"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
- "iced_core",
- "iced_futures",
+ "iced_core 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
+ "iced_futures 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "log",
 ]
 
 [[package]]
 name = "iced_futures"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "futures",
- "iced_core",
+ "iced_core 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "log",
  "rustc-hash 2.1.2",
  "tokio",
@@ -3168,16 +3139,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced_futures"
+version = "0.14.0"
+source = "git+https://github.com/pop-os/libcosmic.git#ee5d965983957271cf759fd76e3e4eed4f188d35"
+dependencies = [
+ "futures",
+ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic.git)",
+ "log",
+ "rustc-hash 2.1.2",
+ "wasm-bindgen-futures",
+ "wasmtimer",
+]
+
+[[package]]
 name = "iced_graphics"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "bitflags 2.13.0",
  "bytemuck",
  "cosmic-text",
  "half",
- "iced_core",
- "iced_futures",
+ "iced_core 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
+ "iced_futures 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "image",
  "kamadak-exif",
  "log",
@@ -3191,7 +3175,7 @@ dependencies = [
 [[package]]
 name = "iced_program"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "iced_graphics",
  "iced_runtime",
@@ -3200,7 +3184,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -3212,13 +3196,13 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "bytes",
  "cosmic-client-toolkit",
  "dnd",
- "iced_core",
- "iced_futures",
+ "iced_core 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
+ "iced_futures 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "raw-window-handle",
  "thiserror 2.0.18",
  "window_clipboard",
@@ -3227,7 +3211,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -3244,7 +3228,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "as-raw-xcb-connection",
  "bitflags 2.13.0",
@@ -3275,7 +3259,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.2"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
@@ -3293,13 +3277,13 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "cosmic-client-toolkit",
  "cursor-icon",
  "dnd",
  "iced_debug",
- "iced_futures",
+ "iced_futures 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "iced_graphics",
  "iced_program",
  "iced_runtime",
@@ -4403,13 +4387,13 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libcosmic"
 version = "1.0.0"
-source = "git+https://github.com/pop-os/libcosmic.git#18a7a75e3316b1f4855777af677d989467f2da74"
+source = "git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde#5778643e46f665c54a8936b99c5353bb72fa1c5f"
 dependencies = [
  "apply",
  "ashpd 0.12.3",
  "auto_enums",
  "cosmic-client-toolkit",
- "cosmic-config",
+ "cosmic-config 1.0.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "cosmic-freedesktop-icons",
  "cosmic-settings-config",
  "cosmic-settings-daemon",
@@ -4422,8 +4406,8 @@ dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
  "iced",
- "iced_core",
- "iced_futures",
+ "iced_core 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
+ "iced_futures 0.14.0 (git+https://github.com/Lin-WMDE/libcosmic.git?branch=wmde)",
  "iced_renderer",
  "iced_runtime",
  "iced_tiny_skia",
@@ -8844,6 +8828,84 @@ name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+
+[[package]]
+name = "wmde-files"
+version = "1.2.0"
+dependencies = [
+ "anyhow",
+ "atomic_float",
+ "bstr",
+ "bzip2",
+ "compio",
+ "cosmic-client-toolkit",
+ "cosmic-mime-apps",
+ "dirs 6.0.0",
+ "fastrand",
+ "filetime",
+ "flate2",
+ "fork",
+ "gio",
+ "glib",
+ "glob",
+ "i18n-embed",
+ "i18n-embed-fl",
+ "icu",
+ "ignore",
+ "image",
+ "jiff",
+ "jiff-icu",
+ "jxl-oxide",
+ "libc",
+ "libcosmic",
+ "log",
+ "lzma-rust2",
+ "md-5",
+ "mime_guess",
+ "notify-debouncer-full",
+ "notify-rust",
+ "num_cpus",
+ "num_enum",
+ "open",
+ "ordermap",
+ "paste",
+ "png 0.18.1",
+ "procfs",
+ "recently-used-xbel",
+ "regex",
+ "rust-embed",
+ "rustc-hash 2.1.2",
+ "serde",
+ "sha2 0.10.9",
+ "shlex 1.3.0",
+ "slotmap",
+ "tar",
+ "tempfile",
+ "test-log",
+ "thiserror 2.0.18",
+ "tikv-jemallocator",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "trash",
+ "url",
+ "uzers",
+ "walkdir",
+ "wayland-client",
+ "xdg",
+ "xdg-mime",
+ "xdgen",
+ "zip",
+]
+
+[[package]]
+name = "wmde-files-applet"
+version = "1.2.0"
+dependencies = [
+ "log",
+ "wmde-files",
+ "zbus 4.4.0",
+]
 
 [[package]]
 name = "write16"
