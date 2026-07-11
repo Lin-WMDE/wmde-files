@@ -3063,12 +3063,12 @@ impl Application for App {
             }
             Message::CosmicSettings(arg) => {
                 //TODO: use special settings URL scheme instead?
-                let mut command = process::Command::new("cosmic-settings");
+                let mut command = process::Command::new("wmde-settings");
                 command.arg(arg);
                 match spawn_detached(&mut command) {
                     Ok(()) => {}
                     Err(err) => {
-                        log::warn!("failed to run cosmic-settings {arg}: {err}");
+                        log::warn!("failed to run wmde-settings {arg}: {err}");
                     }
                 }
             }

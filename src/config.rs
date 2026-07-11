@@ -378,7 +378,7 @@ impl IconSizes {
     }
 }
 
-pub const TIME_CONFIG_ID: &str = "com.system76.CosmicAppletTime";
+pub const TIME_CONFIG_ID: &str = "fun.wmde.AppletTime";
 
 #[derive(Debug, Default, Clone, CosmicConfigEntry, PartialEq, Eq)]
 #[version = 1]

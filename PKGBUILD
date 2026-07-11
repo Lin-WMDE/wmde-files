@@ -16,9 +16,6 @@ optdepends=('gvfs: mount removable and network locations'
 # makedepends: same toolchain/libs that build the fork in Docker (Dockerfile.build) + glib2.
 makedepends=('rust' 'cargo' 'just' 'git' 'clang' 'lld' 'pkgconf' 'glib2' 'mesa' 'wayland'
              'libxkbcommon' 'fontconfig' 'freetype2' 'expat' 'zstd')
-provides=('cosmic-files')
-conflicts=('cosmic-files')
-replaces=('cosmic-files')
 source=("$pkgname::git+https://github.com/Lin-WMDE/wmde-files.git#branch=wmde")
 sha256sums=('SKIP')
 
@@ -42,7 +39,5 @@ package() {
   # installs wmde-files{,-applet} to /usr/bin and the fun.wmde.files
   # .desktop/metainfo/icons to /usr/share
   just rootdir="$pkgdir" prefix=/usr install
-  # compat: `cosmic-files` name for by-name launches and to back provides=(cosmic-files)
-  ln -s wmde-files "$pkgdir/usr/bin/cosmic-files"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

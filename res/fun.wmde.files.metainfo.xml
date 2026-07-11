@@ -31,7 +31,7 @@
   <launchable type="desktop-id">fun.wmde.files.desktop</launchable>
   <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/Lin-WMDE/wmde-files/master/res/icons/hicolor/256x256/apps/fun.wmde.files.svg</icon>
   <provides>
-    <id>com.system76.CosmicApplication</id>
+    <id>fun.wmde.Application</id>
     <mimetypes>
       <mimetype>inode/directory</mimetype>
     </mimetypes>
