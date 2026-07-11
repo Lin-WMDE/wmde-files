@@ -5310,6 +5310,14 @@ impl Application for App {
             }
             #[cfg(all(feature = "wayland", feature = "desktop-applet"))]
             Message::OutputEvent(output_event, output) => {
+                // WMDE: only the desktop-applet (Mode::Desktop) manages per-output
+                // layer surfaces + their Desktop tab. In a workspace build the
+                // `desktop-applet` feature unifies into the regular file-manager
+                // binary too, so without this guard the normal window (Mode::App)
+                // also spawns a spurious "Desktop" tab from output events.
+                if !matches!(self.mode, Mode::Desktop) {
+                    return Task::none();
+                }
                 match output_event {
                     OutputEvent::Created(output_info_opt) => {
                         let output_id = output.id();
