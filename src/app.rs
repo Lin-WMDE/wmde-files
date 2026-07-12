@@ -2606,8 +2606,8 @@ impl Application for App {
 
     fn nav_context_menu(
         &self,
-        entity: widget::nav_bar::Id,
     ) -> Option<Vec<widget::menu::Tree<cosmic::Action<Self::Message>>>> {
+        let entity = self.nav_model.active();
         let favorite_index_opt = self.nav_model.data::<FavoriteIndex>(entity);
         let location_opt = self.nav_model.data::<Location>(entity);
 
@@ -4583,6 +4583,7 @@ impl Application for App {
                                     commands.push(self.update(Message::CheckClipboard));
                                     commands.push(self.update(Message::Surface(
                                         cosmic::surface::action::app_popup(
+                                            |_| Default::default(),
                                             move |app: &mut Self| -> SctkPopupSettings {
                                                 let anchor_rect = Rectangle {
                                                     x: point.x as i32,
@@ -6583,7 +6584,7 @@ impl Application for App {
                         .class(theme::Container::custom(|theme| {
                             widget::container::Style {
                                 background: Some(cosmic::iced::Background::Color(
-                                    cosmic::iced::Color::from(theme.cosmic().background.divider),
+                                    cosmic::iced::Color::from(theme.cosmic().background(false).divider),
                                 )),
                                 ..Default::default()
                             }
@@ -7426,7 +7427,7 @@ fn wmde_nav_selected_appearance(theme: &theme::Theme) -> widget::button::Style {
     let cosmic = theme.cosmic();
     let mut appearance = widget::button::Style::new();
     appearance.background =
-        Some(cosmic::iced::Color::from(cosmic.primary.component.hover).into());
+        Some(cosmic::iced::Color::from(cosmic.primary(false).component.hover).into());
     appearance.text_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
     appearance.icon_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
     appearance.border_radius = [2.0_f32; 4].into();
@@ -7473,8 +7474,8 @@ fn wmde_tab_style() -> theme::SegmentedButton {
         let top_round = cosmic::iced::border::Radius::from([rad[0], rad[1], 0.0, 0.0]);
         // active tab uses the menu/address-bar color so it connects to the strip below it
         let body = WMDE_MENUBAR;
-        let on = cosmic::iced::Color::from(cosmic.background.on);
-        let on_dim = cosmic::iced::Color::from(cosmic.background.component.on);
+        let on = cosmic::iced::Color::from(cosmic.background(false).on);
+        let on_dim = cosmic::iced::Color::from(cosmic.background(false).component.on);
         let item = |radius| ItemAppearance {
             border: cosmic::iced::Border {
                 radius,
