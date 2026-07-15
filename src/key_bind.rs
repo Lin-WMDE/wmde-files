@@ -59,6 +59,7 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
     if matches!(mode, tab::Mode::App) {
         bind!([Ctrl], Key::Character("d".into()), AddToSidebar);
         bind!([Ctrl], Key::Named(Named::Enter), OpenInNewTab);
+        bind!([Ctrl], Key::Character(",".into()), Settings);
         bind!([Ctrl], Key::Character("w".into()), TabClose);
         bind!([Ctrl], Key::Character("t".into()), TabNew);
         bind!([Ctrl], Key::Named(Named::Tab), TabNext);
