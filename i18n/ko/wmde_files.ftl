@@ -278,3 +278,14 @@ move-to-button-label = 이동
 clear-recents-history = 최근 기록 비우기
 copy-path = 복사 경로
 move-to-title = 이동 위치 선택
+
+# WMDE additions (Win11-style chrome)
+search = 검색
+search-placeholder = { $name } 검색
+search-title = "{ $term }" 검색: { $name }
+status-items =
+    { $items } { $items ->
+       *[other] 개 항목
+    }
+status-selected = { $selected }개 선택됨
+status-disk = { $total } | { $used } 사용됨 | { $free } 사용 가능

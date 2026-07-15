@@ -355,3 +355,15 @@ sort-largest-to-smallest = Do maior para o menor
 context-action-confirm-title = Executar "{ $name }"?
 run = Executar
 rename-confirm = Renomear
+
+# WMDE additions (Win11-style chrome)
+search = Pesquisar
+search-placeholder = Pesquisar em { $name }
+search-title = Pesquisa "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] item
+       *[other] itens
+    }
+status-selected = { $selected } selecionados
+status-disk = { $total } | { $used } usados | { $free } livres

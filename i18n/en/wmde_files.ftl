@@ -402,4 +402,4 @@ status-items =
        *[other] items
     }
 status-selected = { $selected } selected
-status-disk = { $total } · { $used } used · { $free } free
+status-disk = { $total } | { $used } used | { $free } free

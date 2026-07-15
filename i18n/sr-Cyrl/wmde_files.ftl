@@ -73,3 +73,16 @@ mounted-drives = Приључена складишта података
 trash-folder-icon = Иконица корпе са отпаткама
 icon-size-and-spacing = Величина иконице и размак
 icon-size = Величина иконице
+
+# WMDE additions (Win11-style chrome)
+search = Претрага
+search-placeholder = Претражи { $name }
+search-title = Претрага „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] ставка
+        [few] ставке
+       *[other] ставки
+    }
+status-selected = { $selected } изабрано
+status-disk = { $total } | { $used } искоришћено | { $free } слободно

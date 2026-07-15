@@ -57,3 +57,16 @@ cancel = Poništi
 zoom-in = Uvećaj
 default-size = Podrazumevana veličina
 zoom-out = Umanji
+
+# WMDE additions (Win11-style chrome)
+search = Pretraga
+search-placeholder = Pretraži { $name }
+search-title = Pretraga „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] stavka
+        [few] stavke
+       *[other] stavki
+    }
+status-selected = { $selected } izabrano
+status-disk = { $total } | { $used } iskorišćeno | { $free } slobodno

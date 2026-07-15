@@ -5264,6 +5264,67 @@ impl Tab {
             .into()
     }
 
+    // WMDE: the sort-column header row, rendered in the list BODY above the items so the
+    // columns stay aligned (extracted from location_view, which is drawn app-level).
+    fn wmde_list_header(&self) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_xxxs,
+            space_xxs,
+            space_m,
+            ..
+        } = theme::spacing();
+
+        let modified_width = 200.0;
+        let size_width = 100.0;
+
+        let (sort_name, sort_direction, _) = self.sort_options();
+        let heading_item = |name, width, msg| {
+            let mut row = widget::row::with_capacity(2)
+                .align_y(Alignment::Center)
+                .spacing(space_xxxs)
+                .width(width);
+            row = row.push(widget::text::heading(name));
+            match (sort_name == msg, sort_direction) {
+                (true, true) => {
+                    row = row.push(widget::icon::from_name("pan-down-symbolic").size(16));
+                }
+                (true, false) => {
+                    row = row.push(widget::icon::from_name("pan-up-symbolic").size(16));
+                }
+                _ => {}
+            }
+            mouse_area::MouseArea::new(row)
+                .on_press(move |_point_opt| Message::ToggleSort(msg))
+                .into()
+        };
+
+        let heading_row = widget::row::with_children([
+            heading_item(fl!("name"), Length::Fill, HeadingOptions::Name),
+            if self.location.is_trash() {
+                heading_item(
+                    fl!("trashed-on"),
+                    Length::Fixed(modified_width),
+                    HeadingOptions::TrashedOn,
+                )
+            } else {
+                heading_item(
+                    fl!("modified"),
+                    Length::Fixed(modified_width),
+                    HeadingOptions::Modified,
+                )
+            },
+            heading_item(fl!("size"), Length::Fixed(size_width), HeadingOptions::Size),
+        ])
+        .align_y(Alignment::Center)
+        .height(Length::Fixed((space_m + 4).into()))
+        .padding([0, space_xxs]);
+
+        let heading_rule = widget::container(rule::horizontal(1))
+            .padding([0, theme::active().cosmic().corner_radii.radius_xs[0] as u16]);
+
+        widget::column::with_children([heading_row.into(), heading_rule.into()]).into()
+    }
+
     pub fn location_view(&self) -> Element<'_, Message> {
         //TODO: responsiveness is done in a hacky way, potentially move this to a custom widget?
         fn text_width<'a>(
@@ -5344,56 +5405,7 @@ impl Tab {
         w += f32::from(space_s);
 
         //TODO: allow resizing?
-        let name_width = 300.0;
-        let modified_width = 200.0;
-        let size_width = 100.0;
-        let condensed = size.width < (name_width + modified_width + size_width);
-
-        let (sort_name, sort_direction, _) = self.sort_options();
-        let heading_item = |name, width, msg| {
-            let mut row = widget::row::with_capacity(2)
-                .align_y(Alignment::Center)
-                .spacing(space_xxxs)
-                .width(width);
-            row = row.push(widget::text::heading(name));
-            match (sort_name == msg, sort_direction) {
-                (true, true) => {
-                    row = row.push(widget::icon::from_name("pan-down-symbolic").size(16));
-                }
-                (true, false) => {
-                    row = row.push(widget::icon::from_name("pan-up-symbolic").size(16));
-                }
-                _ => {}
-            }
-            //TODO: make it possible to resize with the mouse
-            mouse_area::MouseArea::new(row)
-                .on_press(move |_point_opt| Message::ToggleSort(msg))
-                .into()
-        };
-
-        let heading_row = widget::row::with_children([
-            heading_item(fl!("name"), Length::Fill, HeadingOptions::Name),
-            if self.location.is_trash() {
-                heading_item(
-                    fl!("trashed-on"),
-                    Length::Fixed(modified_width),
-                    HeadingOptions::TrashedOn,
-                )
-            } else {
-                heading_item(
-                    fl!("modified"),
-                    Length::Fixed(modified_width),
-                    HeadingOptions::Modified,
-                )
-            },
-            heading_item(fl!("size"), Length::Fixed(size_width), HeadingOptions::Size),
-        ])
-        .align_y(Alignment::Center)
-        .height(Length::Fixed((space_m + 4).into()))
-        .padding([0, space_xxs]);
-
-        let heading_rule = widget::container(rule::horizontal(1))
-            .padding([0, theme::active().cosmic().corner_radii.radius_xs[0] as u16]);
+        // WMDE: sort headers are rendered by wmde_list_header() in the body, not here.
 
         if let Some(edit_location) = &self.edit_location {
             let mut text_input = None;
@@ -5472,10 +5484,6 @@ impl Tab {
             .padding([0, 0])
             .width(Length::Fill);
                 column = column.push(row);
-                if self.config.view == View::List && !condensed {
-                    column = column.push(heading_row);
-                    column = column.push(heading_rule);
-                }
                 return column.into();
             }
         }
@@ -5640,11 +5648,6 @@ impl Tab {
             .padding([0, 0])
             .width(Length::Fill);
         column = column.push(row);
-
-        if self.config.view == View::List && !condensed {
-            column = column.push(heading_row);
-            column = column.push(heading_rule);
-        }
 
         // WMDE: clicking the empty part of the address row enters path-edit mode
         // (crumb buttons consume their own clicks; the rest falls through here)
@@ -6450,8 +6453,23 @@ impl Tab {
             ..
         } = theme::spacing();
 
-        // WMDE: location bar rendered app-level (full width under menu)
-        let location_view_opt: Option<Element<'_, Message>> = None;
+        // WMDE: App/Desktop draw the address bar app-level (full width under the menu);
+        // dialogs draw it here so they keep breadcrumbs, back/forward and Ctrl+L.
+        let location_view_opt: Option<Element<'_, Message>> = if matches!(self.mode, Mode::Dialog(_)) {
+            Some(self.location_view())
+        } else {
+            None
+        };
+        // WMDE: sort-column headers live in the body above the list so they stay column-aligned.
+        let list_header_opt: Option<Element<'_, Message>> = {
+            let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
+            let condensed = size.width < (300.0 + 200.0 + 100.0);
+            if self.config.view == View::List && !condensed {
+                Some(self.wmde_list_header())
+            } else {
+                None
+            }
+        };
         let (drag_list, mut item_view, can_scroll) = match self.config.view {
             View::Grid => self.grid_view(),
             View::List => self.list_view(),
@@ -6538,6 +6556,9 @@ impl Tab {
         let mut tab_column = widget::column::with_capacity(3);
         if let Some(location_view) = location_view_opt {
             tab_column = tab_column.push(location_view);
+        }
+        if let Some(list_header) = list_header_opt {
+            tab_column = tab_column.push(list_header);
         }
         if can_scroll {
             tab_column = tab_column.push(

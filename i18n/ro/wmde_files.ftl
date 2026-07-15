@@ -375,3 +375,16 @@ sort-newest-first = Cele mai noi primele
 sort-oldest-first = Cele mai vechi primele
 sort-smallest-to-largest = De la mic la mare
 sort-largest-to-smallest = De la mare la mic
+
+# WMDE additions (Win11-style chrome)
+search = Caută
+search-placeholder = Caută în { $name }
+search-title = Căutare „{ $term }”: { $name }
+status-items =
+    { $items } { $items ->
+        [one] element
+        [few] elemente
+       *[other] de elemente
+    }
+status-selected = { $selected } selectate
+status-disk = { $total } | { $used } utilizat | { $free } liber

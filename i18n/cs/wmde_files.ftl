@@ -428,3 +428,16 @@ context-action-confirm-warning =
     }.
 run = Spustit
 rename-confirm = Přejmenovat
+
+# WMDE additions (Win11-style chrome)
+search = Hledat
+search-placeholder = Prohledat { $name }
+search-title = Hledat „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] položka
+        [few] položky
+       *[other] položek
+    }
+status-selected = { $selected } vybráno
+status-disk = { $total } | využito { $used } | volno { $free }

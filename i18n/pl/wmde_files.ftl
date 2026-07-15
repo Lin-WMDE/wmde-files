@@ -447,3 +447,17 @@ context-action-confirm-warning =
     }.
 run = Uruchom
 rename-confirm = Zmień nazwę
+
+# WMDE additions (Win11-style chrome)
+search = Szukaj
+search-placeholder = Przeszukaj { $name }
+search-title = Wyszukiwanie "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] element
+        [few] elementy
+        [many] elementów
+       *[other] elementu
+    }
+status-selected = Zaznaczono: { $selected }
+status-disk = { $total } | użyto { $used } | wolne { $free }

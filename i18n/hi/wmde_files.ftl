@@ -285,3 +285,15 @@ sort-smallest-to-largest = छोटे से बड़े
 sort-largest-to-smallest = बड़े से छोटे
 repository = रिपॉजिटरी
 support = सहायता
+
+# WMDE additions (Win11-style chrome)
+search = खोजें
+search-placeholder = { $name } में खोजें
+search-title = "{ $term }" खोजें: { $name }
+status-items =
+    { $items } { $items ->
+        [one] आइटम
+       *[other] आइटम
+    }
+status-selected = { $selected } चयनित
+status-disk = { $total } | { $used } उपयोग में | { $free } खाली

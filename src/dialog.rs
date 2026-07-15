@@ -1008,7 +1008,7 @@ impl Application for App {
     type Message = Message;
 
     /// The unique application ID to supply to the window manager.
-    const APP_ID: &'static str = "fun.wmde.files.dialog";
+    const APP_ID: &'static str = crate::app::DIALOG_APP_ID;
 
     fn core(&self) -> &Core {
         &self.core

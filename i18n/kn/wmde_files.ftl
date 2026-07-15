@@ -283,3 +283,15 @@ sort-newest-first = ಹೊಸದರಿಂದ ಹಳೆಯದು
 sort-oldest-first = ಹಳೆಯದರಿಂದ ಹೊಸದು
 sort-smallest-to-largest = ಚಿಕ್ಕದರಿಂದ ದೊಡ್ಡದು
 sort-largest-to-smallest = ದೊಡ್ಡದರಿಂದ ಚಿಕ್ಕದು
+
+# WMDE additions (Win11-style chrome)
+search = ಹುಡುಕಿ
+search-placeholder = { $name } ನಲ್ಲಿ ಹುಡುಕಿ
+search-title = "{ $term }" ಹುಡುಕಾಟ: { $name }
+status-items =
+    { $items } { $items ->
+        [one] ಐಟಂ
+       *[other] ಐಟಂಗಳು
+    }
+status-selected = { $selected } ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ
+status-disk = { $total } | { $used } ಬಳಸಲಾಗಿದೆ | { $free } ಖಾಲಿ ಇದೆ

@@ -422,3 +422,15 @@ removed-from-recents =
 setting-permissions = Estableciendo permisos para "{ $name } " a { $mode }
 progress-failed = { $percent } %, con errores
 set-permissions = Establecer permisos de "{ $name }" como { $mode }
+
+# WMDE additions (Win11-style chrome)
+search = Buscar
+search-placeholder = Buscar en { $name }
+search-title = Buscar «{ $term }»: { $name }
+status-items =
+    { $items } { $items ->
+        [one] elemento
+       *[other] elementos
+    }
+status-selected = { $selected } seleccionados
+status-disk = { $total } | { $used } usados | { $free } libres

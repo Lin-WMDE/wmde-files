@@ -328,3 +328,16 @@ copy-to = Умножи у...
 move-to = Помери у...
 copy-path = Умножи путању
 rename-confirm = Преименуј
+
+# WMDE additions (Win11-style chrome)
+search = Претрага
+search-placeholder = Претражи { $name }
+search-title = Претрага „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] ставка
+        [few] ставке
+       *[other] ставки
+    }
+status-selected = { $selected } изабрано
+status-disk = { $total } | { $used } искоришћено | { $free } слободно

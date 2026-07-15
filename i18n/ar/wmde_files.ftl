@@ -383,3 +383,19 @@ context-action-confirm-warning =
        *[other] عنصر
     }.
 run = شغِّل
+
+# WMDE additions (Win11-style chrome)
+search = بحث
+search-placeholder = البحث في { $name }
+search-title = البحث عن "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [zero] عنصر
+        [one] عنصر
+        [two] عنصران
+        [few] عناصر
+        [many] عنصرًا
+       *[other] عنصر
+    }
+status-selected = تم تحديد { $selected }
+status-disk = { $total } | { $used } مستخدمة | { $free } خالية

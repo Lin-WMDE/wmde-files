@@ -430,3 +430,17 @@ removed-from-recents =
        *[other] элементаў
     } з { recents }
 remove-from-recents = Выдаліць з нядаўніх
+
+# WMDE additions (Win11-style chrome)
+search = Пошук
+search-placeholder = Пошук: { $name }
+search-title = Пошук «{ $term }»: { $name }
+status-items =
+    { $items } { $items ->
+        [one] элемент
+        [few] элементы
+        [many] элементаў
+       *[other] элемента
+    }
+status-selected = { $selected } выбрана
+status-disk = { $total } | занята { $used } | вольна { $free }

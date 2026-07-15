@@ -402,4 +402,4 @@ status-items =
        *[other] елемента
     }
 status-selected = { $selected } вибрано
-status-disk = { $total } · зайнято { $used } · вільно { $free }
+status-disk = { $total } | зайнято { $used } | вільно { $free }

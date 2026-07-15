@@ -208,3 +208,15 @@ sort-a-z = ਓ-ੜ
 sort-z-a = ੜ-ਓ
 sort-smallest-to-largest = ਛੋਟੇ ਤੋਂ ਵੱਡਾ
 sort-largest-to-smallest = ਵੱਡੇ ਤੋਂ ਛੋਟਾ
+
+# WMDE additions (Win11-style chrome)
+search = ਖੋਜ
+search-placeholder = { $name } ਵਿੱਚ ਖੋਜੋ
+search-title = ਖੋਜ "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] ਚੀਜ਼
+       *[other] ਚੀਜ਼ਾਂ
+    }
+status-selected = { $selected } ਚੁਣੀਆਂ
+status-disk = { $total } | { $used } ਵਰਤੀ ਗਈ | { $free } ਖਾਲੀ

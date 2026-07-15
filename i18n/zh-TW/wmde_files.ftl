@@ -393,3 +393,14 @@ context-action-confirm-warning =
     } 上執行。
 run = 執行
 rename-confirm = 重新命名
+
+# WMDE additions (Win11-style chrome)
+search = 搜尋
+search-placeholder = 搜尋 { $name }
+search-title = 搜尋「{ $term }」：{ $name }
+status-items =
+    { $items } { $items ->
+       *[other] 個項目
+    }
+status-selected = 已選取 { $selected } 個項目
+status-disk = { $total } | 已使用 { $used } | 可用 { $free }

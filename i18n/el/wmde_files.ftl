@@ -328,3 +328,15 @@ context-action-confirm-warning =
        *[other] στοιχεία
     }.
 rename-confirm = Μετονομασία
+
+# WMDE additions (Win11-style chrome)
+search = Αναζήτηση
+search-placeholder = Αναζήτηση σε { $name }
+search-title = Αναζήτηση «{ $term }»: { $name }
+status-items =
+    { $items } { $items ->
+        [one] στοιχείο
+       *[other] στοιχεία
+    }
+status-selected = { $selected } επιλεγμένα
+status-disk = { $total } | { $used } σε χρήση | { $free } ελεύθερα

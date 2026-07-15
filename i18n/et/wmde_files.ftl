@@ -214,3 +214,15 @@ sort-newest-first = Esmalt uuemad
 sort-oldest-first = Esmalt vanemad
 sort-smallest-to-largest = Väiksemast suuremani
 sort-largest-to-smallest = Suuremast väiksemani
+
+# WMDE additions (Win11-style chrome)
+search = Otsi
+search-placeholder = Otsi asukohast { $name }
+search-title = Otsing „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] objekt
+       *[other] objekti
+    }
+status-selected = { $selected } valitud
+status-disk = { $total } | { $used } kasutusel | { $free } vaba

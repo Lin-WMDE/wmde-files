@@ -318,3 +318,17 @@ copy-to = Kopijuoti į...
 move-to = Perkeltiį į...
 copy-path = Kopijuoti kelią
 theme = Stilius
+
+# WMDE additions (Win11-style chrome)
+search = Paieška
+search-placeholder = Paieška: { $name }
+search-title = Paieška „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] elementas
+        [few] elementai
+        [many] elemento
+       *[other] elementų
+    }
+status-selected = { $selected } pažymėta
+status-disk = { $total } | užimta { $used } | laisva { $free }

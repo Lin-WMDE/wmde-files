@@ -41,3 +41,15 @@ default-size = Standaardgrootte
 zoom-out = Zoem uit
 zoom-in = Zoem in
 menu-settings = Instellings…
+
+# WMDE additions (Win11-style chrome)
+search = Soek
+search-placeholder = Deursoek { $name }
+search-title = Soek "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] item
+       *[other] items
+    }
+status-selected = { $selected } gekies
+status-disk = { $total } | { $used } gebruik | { $free } vry

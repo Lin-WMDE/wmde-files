@@ -302,3 +302,15 @@ restored =
         [one] atriði
        *[other] atriði
     } úr { trash }
+
+# WMDE additions (Win11-style chrome)
+search = Leita
+search-placeholder = Leita í { $name }
+search-title = Leita „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] atriði
+       *[other] atriði
+    }
+status-selected = { $selected } valin
+status-disk = { $total } | { $used } notað | { $free } laust

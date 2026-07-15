@@ -390,3 +390,17 @@ context-action-confirm-warning =
     }.
 run = Выполнить
 rename-confirm = Переименовать
+
+# WMDE additions (Win11-style chrome)
+search = Поиск
+search-placeholder = Поиск: { $name }
+search-title = Поиск «{ $term }»: { $name }
+status-items =
+    { $items } { $items ->
+        [one] элемент
+        [few] элемента
+        [many] элементов
+       *[other] элемента
+    }
+status-selected = { $selected } выбрано
+status-disk = { $total } | занято { $used } | свободно { $free }

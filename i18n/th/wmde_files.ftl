@@ -306,3 +306,14 @@ sort-newest-first = ไฟล์ใหม่ก่อน
 sort-oldest-first = ไฟล์เก่าก่อน
 sort-smallest-to-largest = ขนาดเล็กก่อน
 sort-largest-to-smallest = ขนาดใหญ่ก่อน
+
+# WMDE additions (Win11-style chrome)
+search = ค้นหา
+search-placeholder = ค้นหาใน { $name }
+search-title = ค้นหา “{ $term }”: { $name }
+status-items =
+    { $items } { $items ->
+       *[other] รายการ
+    }
+status-selected = เลือกแล้ว { $selected } รายการ
+status-disk = { $total } | ใช้ไป { $used } | ว่าง { $free }

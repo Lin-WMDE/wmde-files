@@ -400,3 +400,15 @@ type-to-search-select = İlk eşleşen dosyayı veya klasörü seçer
 copy-to = Buraya kopyala…
 move-to = Buraya taşı…
 show-recents = Kenar çubuğundaki son kullanılanlar klasörü
+
+# WMDE additions (Win11-style chrome)
+search = Ara
+search-placeholder = { $name } içinde ara
+search-title = “{ $term }” araması: { $name }
+status-items =
+    { $items } { $items ->
+        [one] öğe
+       *[other] öğe
+    }
+status-selected = { $selected } seçildi
+status-disk = { $total } | { $used } kullanılıyor | { $free } boş

@@ -328,3 +328,15 @@ context-action-confirm-warning =
     }.
 run = Орындау
 rename-confirm = Атын өзгерту
+
+# WMDE additions (Win11-style chrome)
+search = Іздеу
+search-placeholder = { $name } ішінен іздеу
+search-title = "{ $term }" іздеу: { $name }
+status-items =
+    { $items } { $items ->
+        [one] элемент
+       *[other] элемент
+    }
+status-selected = { $selected } таңдалды
+status-disk = { $total } | { $used } қолданылған | { $free } бос

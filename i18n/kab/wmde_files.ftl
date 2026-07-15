@@ -320,3 +320,15 @@ move-to = Smutti ɣer…
 show-recents = Akaram n melmi kan deg ufeggag adisan
 clear-recents-history = Sfeḍ azray n melmi kan
 copy-path = Nɣel abrid
+
+# WMDE additions (Win11-style chrome)
+search = Nadi
+search-placeholder = Nadi deg { $name }
+search-title = Anadi "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] n uferdis
+       *[other] n yiferdisen
+    }
+status-selected = { $selected } yettwafernen
+status-disk = { $total } | { $used } yettwaseqdec | { $free } d ilelli

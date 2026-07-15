@@ -419,3 +419,15 @@ context-action-confirm-warning =
     }.
 run = Kör
 rename-confirm = Byt namn
+
+# WMDE additions (Win11-style chrome)
+search = Sök
+search-placeholder = Sök i { $name }
+search-title = Sök "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] objekt
+       *[other] objekt
+    }
+status-selected = { $selected } valda
+status-disk = { $total } | { $used } använt | { $free } ledigt

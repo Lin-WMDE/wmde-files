@@ -77,9 +77,10 @@ default-features = false
 features = ["fs", "io", "macros", "polling", "runtime"]
 
 [dependencies.libcosmic]
-# WMDE fork of pop-os/libcosmic (branch wmde): 18a7a75e (COSMIC 1.2) + header_padding theme field
-git = "https://github.com/Lin-WMDE/libcosmic.git"
-branch = "wmde"
+# WMDE libcosmic fork (v2), resolved by path to the sibling checkout. The build harness
+# arranges siblings next to $srcdir; the [patch] tables below redirect every transitive
+# pop-os/libcosmic pull to the same local crates so a single libcosmic/cosmic-config resolves.
+path = "../libcosmic"
 default-features = false
 #TODO: a11y feature crashes
 features = [
@@ -153,13 +154,33 @@ tokio = { version = "1", features = ["rt", "macros"] }
 # [patch.'https://github.com/pop-os/cosmic-text']
 # cosmic-text = { path = "../cosmic-text" }
 
-# [patch.'https://github.com/pop-os/libcosmic']
-# libcosmic = { path = "../libcosmic" }
-# cosmic-config = { path = "../libcosmic/cosmic-config" }
-# cosmic-theme = { path = "../libcosmic/cosmic-theme" }
-# libcosmic = { git = "https://github.com/pop-os/libcosmic//", branch = "iced-rebase" }
-# cosmic-config = { git = "https://github.com/pop-os/libcosmic//", branch = "iced-rebase" }
-# cosmic-theme = { git = "https://github.com/pop-os/libcosmic//", branch = "iced-rebase" }
+# Redirect every transitive pop-os/libcosmic pull (via cosmic-settings-config, cosmic-mime-apps,
+# etc.) to the local v2 fork so a single libcosmic/cosmic-config/cosmic-theme resolves in the graph.
+[patch."https://github.com/pop-os/libcosmic"]
+libcosmic = { path = "../libcosmic" }
+cosmic-config = { path = "../libcosmic/cosmic-config" }
+cosmic-config-derive = { path = "../libcosmic/cosmic-config-derive" }
+cosmic-theme = { path = "../libcosmic/cosmic-theme" }
+iced = { path = "../libcosmic/iced" }
+iced_core = { path = "../libcosmic/iced/core" }
+iced_futures = { path = "../libcosmic/iced/futures" }
+iced_runtime = { path = "../libcosmic/iced/runtime" }
+iced_widget = { path = "../libcosmic/iced/widget" }
+
+# cosmic-settings-config pins libcosmic crates from the .git and trailing-slash URL variants.
+[patch."https://github.com/pop-os/libcosmic/"]
+cosmic-config = { path = "../libcosmic/cosmic-config" }
+cosmic-theme = { path = "../libcosmic/cosmic-theme" }
+
+[patch."https://github.com/pop-os/libcosmic.git"]
+libcosmic = { path = "../libcosmic" }
+cosmic-config = { path = "../libcosmic/cosmic-config" }
+cosmic-config-derive = { path = "../libcosmic/cosmic-config-derive" }
+cosmic-theme = { path = "../libcosmic/cosmic-theme" }
+
+# Shortcuts/WindowRules config crates come from the wmde-settings-daemon fork (fun.wmde.* ids).
+[patch."https://github.com/pop-os/cosmic-settings-daemon"]
+cosmic-settings-config = { path = "../wmde-settings-daemon/config" }
 
 
 # [patch.'https://github.com/pop-os/smithay-clipboard']

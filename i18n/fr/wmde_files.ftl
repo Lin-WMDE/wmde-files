@@ -446,3 +446,15 @@ context-action-confirm-warning =
 run = Exécuter
 context-action = Action contextuelle
 rename-confirm = Renommer
+
+# WMDE additions (Win11-style chrome)
+search = Rechercher
+search-placeholder = Rechercher dans { $name }
+search-title = Recherche « { $term } » : { $name }
+status-items =
+    { $items } { $items ->
+        [one] élément
+       *[other] éléments
+    }
+status-selected = { $selected } sélectionnés
+status-disk = { $total } | { $used } utilisés | { $free } libres

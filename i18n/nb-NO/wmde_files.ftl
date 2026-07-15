@@ -302,3 +302,15 @@ sort-newest-first = Nyeste først
 sort-oldest-first = Eldste først
 sort-smallest-to-largest = Minste til største
 sort-largest-to-smallest = Største til minste
+
+# WMDE additions (Win11-style chrome)
+search = Søk
+search-placeholder = Søk i { $name }
+search-title = Søk «{ $term }»: { $name }
+status-items =
+    { $items } { $items ->
+        [one] objekt
+       *[other] objekter
+    }
+status-selected = { $selected } valgt
+status-disk = { $total } | { $used } brukt | { $free } ledig

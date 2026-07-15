@@ -328,3 +328,15 @@ write-only = Tenê nivîsandin
 trashed-on = Li Jêbirdankê hatiye avêtin
 mixed = Tevlihev
 type-to-search-select = Pel an peldanka yekem a lihevhatî hildibijêre
+
+# WMDE additions (Win11-style chrome)
+search = Lêgerîn
+search-placeholder = Li { $name } bigere
+search-title = Lêgerîna "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] hêman
+       *[other] hêman
+    }
+status-selected = { $selected } hilbijartî
+status-disk = { $total } | { $used } bikarhatî | { $free } vala

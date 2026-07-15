@@ -84,6 +84,10 @@ use crate::trash::{Trash, TrashExt};
 use crate::zoom::{zoom_in_view, zoom_out_view, zoom_to_default};
 use crate::{FxOrderMap, context_action, fl, home_dir, menu, mime_icon};
 
+/// Window-manager app id used for floating file-chooser dialog windows.
+/// Must stay byte-identical to wmde-comp's tiling exception for this id.
+pub const DIALOG_APP_ID: &str = "fun.wmde.files.dialog";
+
 static PERMANENT_DELETE_BUTTON_ID: LazyLock<widget::Id> =
     LazyLock::new(|| widget::Id::new("permanent-delete-button"));
 
@@ -444,7 +448,9 @@ pub enum Message {
     TabMessage(Option<Entity>, tab::Message),
     TabNew,
     // WMDE: open a sidebar location in a background tab (middle-click)
-    WmdeOpenInBackgroundTab(PathBuf),
+    WmdeOpenInBackgroundTab(Location),
+    // WMDE: eject/unmount the drive at this path (sidebar eject button)
+    WmdeEject(PathBuf),
     TabRescan(
         Entity,
         Location,
@@ -732,6 +738,10 @@ pub struct App {
     // WMDE: cached disk usage (total bytes, free bytes) per drive path; refreshed on mount
     // changes instead of stat-ing on every render (and skips remote mounts to avoid UI hangs).
     wmde_disk_usage: HashMap<PathBuf, (u64, u64)>,
+    // WMDE: cached (path, total, free) for the CURRENT tab location via a single statvfs of
+    // the real path - correct for /home and other filesystems the mounter never reports.
+    // Refreshed on location change and after operations, not per render.
+    wmde_loc_disk: Option<(PathBuf, u64, u64)>,
     must_save_sort_names: bool,
     network_drive_connecting: Option<(MounterKey, String)>,
     network_drive_input: String,
@@ -1400,6 +1410,9 @@ impl App {
         commands.push(self.rescan_operation_selection(op_sel));
         // Manually rescan any trash tabs after any operation is completed
         commands.push(self.rescan_trash());
+        // WMDE: file counts/free space changed - refresh drive bars and the status disk
+        self.wmde_refresh_disk_usage();
+        self.wmde_refresh_loc_disk();
 
         Task::batch(commands)
     }
@@ -1759,11 +1772,10 @@ impl App {
 
     // WMDE: the cached disk (total, free) for the mount whose path is the longest prefix of `path`.
     fn wmde_current_disk(&self, path: &std::path::Path) -> Option<(u64, u64)> {
-        self.wmde_disk_usage
-            .iter()
-            .filter(|(mount, _)| path.starts_with(mount))
-            .max_by_key(|(mount, _)| mount.as_os_str().len())
-            .map(|(_, usage)| *usage)
+        match &self.wmde_loc_disk {
+            Some((p, total, avail)) if p.as_path() == path => Some((*total, *avail)),
+            _ => None,
+        }
     }
 
     // WMDE: Win11-style status bar, rendered at the bottom of the body (not the libcosmic
@@ -1774,22 +1786,31 @@ impl App {
             space_xxxs, space_s, ..
         } = theme::spacing();
         let tab_opt = self.tab_model.active_data::<Tab>();
-        let (count, selected_count, selected_size) = match tab_opt.and_then(|tab| tab.items_opt())
-        {
-            Some(items) => {
-                let selected: Vec<_> = items.iter().filter(|item| item.selected).collect();
-                let size: u64 = selected
-                    .iter()
-                    .filter_map(|item| item.metadata.file_size())
-                    .sum();
-                (items.len(), selected.len(), size)
-            }
+        let (count, selected_count, selected_size) = match tab_opt {
+            Some(tab) => match tab.items_opt() {
+                Some(items) => {
+                    // Count what the view actually shows (hidden items are filtered unless enabled).
+                    let show_hidden = tab.config.show_hidden;
+                    let count = items
+                        .iter()
+                        .filter(|item| show_hidden || !item.hidden)
+                        .count();
+                    let (selected_count, selected_size) = items
+                        .iter()
+                        .filter(|item| item.selected)
+                        .fold((0usize, 0u64), |(c, sz), item| {
+                            (c + 1, sz + item.metadata.file_size().unwrap_or(0))
+                        });
+                    (count, selected_count, selected_size)
+                }
+                None => (0, 0, 0),
+            },
             None => (0, 0, 0),
         };
 
         let text = if selected_count > 0 {
             format!(
-                "{}  ·  {}",
+                "{}  |  {}",
                 fl!("status-selected", selected = selected_count),
                 tab::format_size(selected_size)
             )
@@ -1802,7 +1823,7 @@ impl App {
                 .and_then(|p| self.wmde_current_disk(&p));
             match disk {
                 Some((total, avail)) => format!(
-                    "{}  ·  {}",
+                    "{}  |  {}",
                     fl!("status-items", items = count),
                     fl!(
                         "status-disk",
@@ -1846,6 +1867,19 @@ impl App {
         }
     }
 
+    // WMDE: statvfs the current tab's real path once, so the status bar shows the correct
+    // filesystem even when it is not a mounter-reported drive (e.g. a separate /home partition).
+    fn wmde_refresh_loc_disk(&mut self) {
+        self.wmde_loc_disk = self
+            .tab_model
+            .active_data::<Tab>()
+            .and_then(|tab| match &tab.location {
+                Location::Path(p) | Location::Desktop(p, ..) => Some(p.clone()),
+                _ => None,
+            })
+            .and_then(|p| wmde_fs_usage(&p).map(|(total, avail)| (p, total, avail)));
+    }
+
     fn wmde_sidebar(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xxxs, space_xxs, space_xs, space_s, ..
@@ -1878,7 +1912,19 @@ impl App {
                     icon::from_name("text-x-generic-symbolic").size(16).handle()
                 };
                 let selected = current_path.as_deref() == Some(path.as_path());
-                col = col.push(wmde_sidebar_entry(ic, name, path, selected));
+                let location = match favorite {
+                    Favorite::Network {
+                        uri,
+                        name: net_name,
+                        path: net_path,
+                    } => Location::Network(
+                        uri.clone(),
+                        net_name.clone(),
+                        Some(net_path.clone()),
+                    ),
+                    _ => Location::Path(path.clone()),
+                };
+                col = col.push(wmde_sidebar_entry(ic, name, location, selected));
             }
         }
 
@@ -1888,18 +1934,18 @@ impl App {
                 .padding([space_xs, space_s]),
         );
 
-        let mut drives: Vec<(String, std::path::PathBuf)> = Vec::new();
-        drives.push((fl!("filesystem"), std::path::PathBuf::from("/")));
+        let mut drives: Vec<(String, std::path::PathBuf, bool)> = Vec::new();
+        drives.push((fl!("filesystem"), std::path::PathBuf::from("/"), false));
         for (_key, items) in self.mounter_items.iter() {
             for item in items.iter() {
                 if item.is_mounted() {
                     if let Some(path) = item.path() {
-                        drives.push((item.name(), path));
+                        drives.push((item.name(), path, true));
                     }
                 }
             }
         }
-        for (name, path) in drives {
+        for (name, path, ejectable) in drives {
             let fraction = self.wmde_disk_usage.get(&path).map(|(total, avail)| {
                 if *total > 0 {
                     total.saturating_sub(*avail) as f32 / *total as f32
@@ -1908,7 +1954,7 @@ impl App {
                 }
             });
             let selected = current_path.as_deref() == Some(path.as_path());
-            col = col.push(wmde_drive_entry(name, path, selected, fraction));
+            col = col.push(wmde_drive_entry(name, path, selected, fraction, ejectable));
         }
 
         widget::scrollable(col)
@@ -2523,6 +2569,7 @@ impl Application for App {
             modifiers: Modifiers::empty(),
             mounter_items: FxHashMap::default(),
             wmde_disk_usage: HashMap::default(),
+            wmde_loc_disk: None,
             must_save_sort_names: false,
             network_drive_connecting: None,
             network_drive_input: String::new(),
@@ -2595,6 +2642,7 @@ impl Application for App {
         }
 
         app.wmde_refresh_disk_usage();
+        app.wmde_refresh_loc_disk();
 
         (app, Task::batch(commands))
     }
@@ -3122,7 +3170,7 @@ impl Application for App {
                 {
                     // Use the dialog ID to make it float
                     settings.platform_specific.application_id =
-                        "fun.wmde.files.dialog".to_string();
+                        DIALOG_APP_ID.to_string();
                 }
 
                 let (id, command) = window::open(settings);
@@ -3150,7 +3198,7 @@ impl Application for App {
                         {
                             // Use the dialog ID to make it float
                             settings.platform_specific.application_id =
-                                "fun.wmde.files.dialog".to_string();
+                                DIALOG_APP_ID.to_string();
                         }
 
                         let (id, command) = window::open(settings);
@@ -3825,8 +3873,8 @@ impl Application for App {
                         .map(|path| self.open_tab(Location::Path(path), false, None)),
                 );
             }
-            Message::WmdeOpenInBackgroundTab(path) => {
-                return self.open_tab(Location::Path(path), false, None);
+            Message::WmdeOpenInBackgroundTab(location) => {
+                return self.open_tab(location, false, None);
             }
             Message::OpenInNewWindow(entity_opt) => match env::current_exe() {
                 Ok(exe) => self
@@ -4242,7 +4290,7 @@ impl Application for App {
                             {
                                 // Use the dialog ID to make it float
                                 settings.platform_specific.application_id =
-                                    "fun.wmde.files.dialog".to_string();
+                                    DIALOG_APP_ID.to_string();
                             }
 
                             let (id, command) = window::open(settings);
@@ -4551,8 +4599,8 @@ impl Application for App {
                             {
                                 self.tab_model.icon_set(entity, wmde_tab_icon(&location));
                             }
-                            // WMDE: refresh disk usage so the status bar shows the new disk
-                            self.wmde_refresh_disk_usage();
+                            // WMDE: refresh the current-location disk stat for the status bar
+                            self.wmde_refresh_loc_disk();
                             // clear the prefix selection buffer when changing location
                             self.type_select_prefix.clear();
                             commands.push(Task::batch([
@@ -5452,6 +5500,22 @@ impl Application for App {
                                         .map(|()| cosmic::action::none());
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            Message::WmdeEject(path) => {
+                #[cfg(feature = "gvfs")]
+                {
+                    for (k, mounter_items) in &self.mounter_items {
+                        if let Some(mounter) = MOUNTERS.get(k)
+                            && let Some(item) = mounter_items
+                                .iter()
+                                .find(|&item| item.path().is_some_and(|p| p == path))
+                        {
+                            return mounter
+                                .unmount(item.clone())
+                                .map(|()| cosmic::action::none());
                         }
                     }
                 }
@@ -6538,11 +6602,20 @@ impl Application for App {
                 .map(move |m| Message::TabMessage(Some(active), m)),
             None => widget::space::horizontal().into(),
         };
-        // WMDE: Win11-style localized placeholder "Search <current folder>" (title() is cheap)
+        // WMDE: Win11-style localized placeholder "Search <current folder>". Derive the name
+        // from the location's folder path so an active Search tab does not nest "Search Search ...".
         let search_placeholder = self
             .tab_model
             .active_data::<Tab>()
-            .map(|t| fl!("search-placeholder", name = t.title()))
+            .map(|t| {
+                let name = t
+                    .location
+                    .path_opt()
+                    .and_then(|p| p.file_name())
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| t.title());
+                fl!("search-placeholder", name = name)
+            })
             .unwrap_or_else(|| fl!("search"));
         widget::container(
             widget::column::with_children(vec![
@@ -7525,7 +7598,6 @@ fn wmde_nav_selected_style() -> theme::Button {
     }
 }
 
-// WMDE: filesystem (usage fraction 0.0..=1.0, available bytes) via statvfs
 // WMDE: total and available bytes for the filesystem containing `path`, via statvfs.
 fn wmde_fs_usage(path: &std::path::Path) -> Option<(u64, u64)> {
     use std::os::unix::ffi::OsStrExt;
@@ -7534,12 +7606,12 @@ fn wmde_fs_usage(path: &std::path::Path) -> Option<(u64, u64)> {
     if unsafe { libc::statvfs(cpath.as_ptr(), &mut stat) } != 0 {
         return None;
     }
-    let total = stat.f_blocks as f64 * stat.f_frsize as f64;
-    let avail = stat.f_bavail as f64 * stat.f_frsize as f64;
-    if total <= 0.0 {
+    let total = (stat.f_blocks as u64).saturating_mul(stat.f_frsize as u64);
+    let avail = (stat.f_bavail as u64).saturating_mul(stat.f_frsize as u64);
+    if total == 0 {
         return None;
     }
-    Some((total as u64, avail as u64))
+    Some((total, avail))
 }
 
 // WMDE: icon for a tab based on its location
@@ -7552,7 +7624,7 @@ fn wmde_tab_icon(location: &Location) -> widget::Icon {
 fn wmde_sidebar_entry(
     icon_handle: widget::icon::Handle,
     name: String,
-    path: PathBuf,
+    location: Location,
     selected: bool,
 ) -> Element<'static, Message> {
     let cosmic_theme::Spacing {
@@ -7561,7 +7633,7 @@ fn wmde_sidebar_entry(
         space_xs,
         ..
     } = theme::spacing();
-    let mid_path = path.clone();
+    let mid_location = location.clone();
     crate::mouse_area::MouseArea::new(
         widget::button::custom(
             widget::row::with_children(vec![
@@ -7573,7 +7645,7 @@ fn wmde_sidebar_entry(
         )
         .on_press(Message::TabMessage(
             None,
-            tab::Message::Location(Location::Path(path)),
+            tab::Message::Location(location),
         ))
         .padding([space_xxxs, space_xs])
         .class(if selected {
@@ -7583,7 +7655,7 @@ fn wmde_sidebar_entry(
         })
         .width(Length::Fill),
     )
-    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_path.clone()))
+    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_location.clone()))
     .into()
 }
 
@@ -7594,6 +7666,7 @@ fn wmde_drive_entry(
     path: PathBuf,
     selected: bool,
     fraction: Option<f32>,
+    ejectable: bool,
 ) -> Element<'static, Message> {
     let cosmic_theme::Spacing {
         space_xxxs,
@@ -7602,6 +7675,7 @@ fn wmde_drive_entry(
         ..
     } = theme::spacing();
     let mid_path = path.clone();
+    let eject_path = path.clone();
     let label = widget::row::with_children(vec![
         icon::icon(icon::from_name("drive-harddisk-symbolic").size(16).handle())
             .size(16)
@@ -7623,7 +7697,7 @@ fn wmde_drive_entry(
         .into(),
         None => label.into(),
     };
-    crate::mouse_area::MouseArea::new(
+    let nav = crate::mouse_area::MouseArea::new(
         widget::button::custom(content)
             .on_press(Message::TabMessage(
                 None,
@@ -7637,6 +7711,22 @@ fn wmde_drive_entry(
             })
             .width(Length::Fill),
     )
-    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_path.clone()))
-    .into()
+    .on_middle_press(move |_| {
+        Message::WmdeOpenInBackgroundTab(Location::Path(mid_path.clone()))
+    });
+
+    if ejectable {
+        widget::row::with_children(vec![
+            nav.into(),
+            widget::button::custom(widget::icon::from_name("media-eject-symbolic").size(16))
+                .on_press(Message::WmdeEject(eject_path))
+                .padding(space_xxs)
+                .class(theme::Button::Icon)
+                .into(),
+        ])
+        .align_y(Alignment::Center)
+        .into()
+    } else {
+        nav.into()
+    }
 }

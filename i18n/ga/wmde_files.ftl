@@ -443,3 +443,18 @@ context-action-confirm-warning =
     }.
 run = Rith
 rename-confirm = Athainmnigh
+
+# WMDE additions (Win11-style chrome)
+search = Cuardaigh
+search-placeholder = Cuardaigh { $name }
+search-title = Cuardaigh "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] mhír
+        [two] mhír
+        [few] mhír
+        [many] mír
+       *[other] mír
+    }
+status-selected = { $selected } roghnaithe
+status-disk = { $total } | { $used } in úsáid | { $free } saor

@@ -438,3 +438,15 @@ context-action-confirm-warning =
     }.
 run = Ausführen
 rename-confirm = Umbenennen
+
+# WMDE additions (Win11-style chrome)
+search = Suchen
+search-placeholder = { $name } durchsuchen
+search-title = Suche „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] Element
+       *[other] Elemente
+    }
+status-selected = { $selected } ausgewählt
+status-disk = { $total } | { $used } belegt | { $free } frei

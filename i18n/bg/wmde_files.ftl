@@ -420,3 +420,15 @@ sort-newest-first = Най-новите първи
 sort-oldest-first = Най-старите първи
 sort-smallest-to-largest = Най-малките до най-големите
 sort-largest-to-smallest = Най-големите до най-малките
+
+# WMDE additions (Win11-style chrome)
+search = Търсене
+search-placeholder = Търсене в { $name }
+search-title = Търсене на „{ $term }“: { $name }
+status-items =
+    { $items } { $items ->
+        [one] елемент
+       *[other] елемента
+    }
+status-selected = { $selected } избрани
+status-disk = { $total } | { $used } използвани | { $free } свободни

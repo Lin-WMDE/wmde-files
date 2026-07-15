@@ -363,3 +363,15 @@ copy-to-button-label = Copia
 move-to-title = Escolliu el destí del trasllat
 move-to-button-label = Mou
 keywords = Carpeta;Fitxers;Arxius;Gestor;Explorador;
+
+# WMDE additions (Win11-style chrome)
+search = Cerca
+search-placeholder = Cerca a { $name }
+search-title = Cerca "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] element
+       *[other] elements
+    }
+status-selected = { $selected } seleccionats
+status-disk = { $total } | { $used } en ús | { $free } lliure

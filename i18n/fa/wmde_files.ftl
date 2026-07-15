@@ -345,3 +345,15 @@ sort-newest-first = جدیدترین در ابتدا
 sort-oldest-first = قدیمی‌ترین در ابتدا
 sort-smallest-to-largest = کوچک‌ترین به بزرگ‌ترین
 sort-largest-to-smallest = بزرگ‌ترین به کوچک‌ترین
+
+# WMDE additions (Win11-style chrome)
+search = جستجو
+search-placeholder = جستجوی { $name }
+search-title = جستجوی "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] مورد
+       *[other] مورد
+    }
+status-selected = { $selected } انتخاب شده
+status-disk = { $total } | { $used } استفاده‌شده | { $free } آزاد

@@ -415,3 +415,15 @@ context-action-confirm-warning =
     }.
 run = Suorita
 rename-confirm = Nimeä uudelleen
+
+# WMDE additions (Win11-style chrome)
+search = Haku
+search-placeholder = Etsi kohteesta { $name }
+search-title = Haku ”{ $term }”: { $name }
+status-items =
+    { $items } { $items ->
+        [one] kohde
+       *[other] kohdetta
+    }
+status-selected = { $selected } valittu
+status-disk = { $total } | { $used } käytetty | { $free } vapaana

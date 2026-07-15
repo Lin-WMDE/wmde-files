@@ -458,3 +458,17 @@ sort-largest-to-smallest = Od najväčších po najmenšie
 repository = Repozitár
 support = Podpora
 progress-failed = { $percent }%, zlyhalo
+
+# WMDE additions (Win11-style chrome)
+search = Hľadať
+search-placeholder = Hľadať v { $name }
+search-title = Hľadať "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] položka
+        [few] položky
+        [many] položky
+       *[other] položiek
+    }
+status-selected = { $selected } vybraných
+status-disk = { $total } | { $used } využité | { $free } voľné

@@ -31,7 +31,11 @@ build() {
   export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-cpu=x86-64-v3"
   # link the system libzstd; the vendored zstd-sys build drops ZSTD_endStream under lld
   export ZSTD_SYS_USE_PKG_CONFIG=1
-  cargo build --release --workspace   # root wmde-files + wmde-files-applet member
+  # Separate invocations so feature unification does not leak the applet's
+  # `desktop-applet` feature into the app binary (which would compile out the
+  # recents watcher). Two builds share the target dir; correctness over speed.
+  cargo build --release -p wmde-files
+  cargo build --release -p wmde-files-applet
 }
 
 package() {

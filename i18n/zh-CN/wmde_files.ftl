@@ -446,3 +446,14 @@ context-action-confirm-warning =
     } 上运行。
 context-action = 环境行动
 rename-confirm = 重命名
+
+# WMDE additions (Win11-style chrome)
+search = 搜索
+search-placeholder = 在 { $name } 中搜索
+search-title = 搜索“{ $term }”：{ $name }
+status-items =
+    { $items } { $items ->
+       *[other] 个项目
+    }
+status-selected = 已选择 { $selected } 项
+status-disk = { $total } | 已用 { $used } | 可用 { $free }

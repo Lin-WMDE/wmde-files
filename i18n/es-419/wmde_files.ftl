@@ -380,3 +380,16 @@ type-to-search-recursive = Buscar en la carpeta actual y todas las subcarpetas
 type-to-search-enter-path = Introducir la ruta al directorio o archivo
 delete-permanently = Eliminar de forma permanente
 eject = Expulsar
+
+# WMDE additions (Win11-style chrome)
+search = Buscar
+search-placeholder = Buscar en { $name }
+search-title = Buscar "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] elemento
+        [many] de elementos
+       *[other] elementos
+    }
+status-selected = { $selected } seleccionados
+status-disk = { $total } | { $used } usado | { $free } libre

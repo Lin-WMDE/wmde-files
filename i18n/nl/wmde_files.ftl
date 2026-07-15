@@ -433,3 +433,15 @@ copy-to = Kopiëren naar…
 move-to = Verplaatsen naar…
 keywords = Bestand;Map;Document;Verkenner
 move-to-title = Verplaatsbestemming aanwijzen
+
+# WMDE additions (Win11-style chrome)
+search = Zoeken
+search-placeholder = Zoeken in { $name }
+search-title = Zoeken naar “{ $term }”: { $name }
+status-items =
+    { $items } { $items ->
+        [one] item
+       *[other] items
+    }
+status-selected = { $selected } geselecteerd
+status-disk = { $total } | { $used } gebruikt | { $free } vrij

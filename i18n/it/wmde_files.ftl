@@ -422,3 +422,15 @@ removed-from-recents =
         [one] elemento
        *[other] elementi
     } da { recents }
+
+# WMDE additions (Win11-style chrome)
+search = Cerca
+search-placeholder = Cerca in { $name }
+search-title = Ricerca "{ $term }": { $name }
+status-items =
+    { $items } { $items ->
+        [one] elemento
+       *[other] elementi
+    }
+status-selected = { $selected } selezionati
+status-disk = { $total } | { $used } in uso | { $free } liberi

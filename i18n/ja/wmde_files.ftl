@@ -362,3 +362,14 @@ desktop-appearance = デスクトップの見た目…
 display-settings = ディスプレイの設定…
 reload-folder = フォルダーを再読み込み
 gallery-preview = ギャラリープレビュー
+
+# WMDE additions (Win11-style chrome)
+search = 検索
+search-placeholder = { $name } を検索
+search-title = 「{ $term }」の検索: { $name }
+status-items =
+    { $items } { $items ->
+       *[other] 個の項目
+    }
+status-selected = { $selected } 個選択
+status-disk = { $total } | 使用済み { $used } | 空き { $free }

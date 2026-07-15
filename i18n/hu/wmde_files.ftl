@@ -446,3 +446,15 @@ context-action-confirm-warning =
     } fog lefutni.
 run = Futtatás
 rename-confirm = Átnevezés
+
+# WMDE additions (Win11-style chrome)
+search = Keresés
+search-placeholder = Keresés: { $name }
+search-title = Keresés „{ $term }”: { $name }
+status-items =
+    { $items } { $items ->
+        [one] elem
+       *[other] elem
+    }
+status-selected = { $selected } kijelölve
+status-disk = { $total } | { $used } foglalt | { $free } szabad
