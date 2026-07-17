@@ -537,7 +537,7 @@ impl MimeAppCache {
         // Look for and return preferred terminals
         //TODO: fallback order beyond cosmic-term?
 
-        let mut preference_order = vec!["com.system76.CosmicTerm".to_string()];
+        let mut preference_order = vec!["fun.wmde.term".to_string()];
 
         if let Some(id) = self.get_default_terminal() {
             preference_order.insert(0, id);
@@ -662,7 +662,7 @@ mod tests {
     #[test]
     #[allow(non_snake_case)]
     fn one_path_F_field_code() {
-        let exec = "/usr/bin/cosmic-term -w %F";
+        let exec = "/usr/bin/wmde-term -w %F";
         let paths = ["/home/user"];
         let commands = exec_to_command(exec, "one_path_F_field_code", None, &paths)
             .expect("Should parse valid exec");
@@ -672,7 +672,7 @@ mod tests {
         let mut args = command.get_args();
 
         assert_eq!(
-            "/usr/bin/cosmic-term",
+            "/usr/bin/wmde-term",
             command.get_program().to_str().unwrap()
         );
         assert_eq!("-w", args.next().unwrap().to_str().unwrap());
@@ -681,7 +681,7 @@ mod tests {
 
     #[test]
     fn one_path_u_field_code() {
-        let exec = "/usr/bin/cosmic-term -w %u";
+        let exec = "/usr/bin/wmde-term -w %u";
         let paths = ["/home/user"];
         let commands = exec_to_command(exec, "one_path_u_field_code", None, &paths)
             .expect("Should parse valid exec");
@@ -691,7 +691,7 @@ mod tests {
         let mut args = command.get_args();
 
         assert_eq!(
-            "/usr/bin/cosmic-term",
+            "/usr/bin/wmde-term",
             command.get_program().to_str().unwrap()
         );
         assert_eq!("-w", args.next().unwrap().to_str().unwrap());
