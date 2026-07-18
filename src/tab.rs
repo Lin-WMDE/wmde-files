@@ -179,7 +179,9 @@ fn button_appearance(
             appearance.icon_color = Some(Color::from(cosmic.on_bg_component_color()));
             appearance.text_color = Some(Color::from(cosmic.on_bg_component_color()));
             if cut {
-                appearance.text_color = Some(Color::from(cosmic.background(false).component.on_disabled));
+                appearance.text_color = Some(Color::from(
+                    cosmic.background(theme.transparent).component.on_disabled,
+                ));
             } else {
                 appearance.text_color = Some(Color::from(cosmic.on_bg_component_color()));
             }
@@ -190,12 +192,16 @@ fn button_appearance(
         appearance.background = Some(Color::from(cosmic.bg_color()).into());
         appearance.icon_color = Some(Color::from(cosmic.on_bg_color()));
         if cut {
-            appearance.text_color = Some(Color::from(cosmic.background(false).component.disabled));
+            appearance.text_color = Some(Color::from(
+                cosmic.background(theme.transparent).component.disabled,
+            ));
         } else {
             appearance.text_color = Some(Color::from(cosmic.on_bg_color()));
         }
     } else if cut {
-        appearance.text_color = Some(Color::from(cosmic.background(false).component.on_disabled));
+        appearance.text_color = Some(Color::from(
+            cosmic.background(theme.transparent).component.on_disabled,
+        ));
     }
     if focused && accent {
         appearance.outline_width = 1.0;
