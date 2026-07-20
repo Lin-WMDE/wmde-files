@@ -1938,18 +1938,34 @@ impl App {
                 .padding([space_xs, space_s]),
         );
 
-        let mut drives: Vec<(String, std::path::PathBuf, bool)> = Vec::new();
-        drives.push((fl!("filesystem"), std::path::PathBuf::from("/"), false));
+        // (name, nav_location, fuse_path, ejectable)
+        let mut drives: Vec<(String, Location, std::path::PathBuf, bool)> = Vec::new();
+        drives.push((
+            fl!("filesystem"),
+            Location::Path(std::path::PathBuf::from("/")),
+            std::path::PathBuf::from("/"),
+            false,
+        ));
         for (_key, items) in self.mounter_items.iter() {
             for item in items.iter() {
                 if item.is_mounted() {
                     if let Some(path) = item.path() {
-                        drives.push((item.name(), path, true));
+                        // WMDE: browse network mounts as their smb:// URI (GNOME/Nautilus
+                        // model) so the address stays smb://... and never shows the
+                        // /run/user/N/gvfs FUSE path. The fuse path is still carried for file
+                        // operations, the disk-usage bar and eject.
+                        let location = if item.is_remote() {
+                            Location::Network(item.uri(), item.name(), Some(path.clone()))
+                        } else {
+                            Location::Path(path.clone())
+                        };
+                        drives.push((item.name(), location, path, true));
                     }
                 }
             }
         }
-        for (name, path, ejectable) in drives {
+        let active_location = self.tab_model.active_data::<Tab>().map(|t| &t.location);
+        for (name, location, path, ejectable) in drives {
             let fraction = self.wmde_disk_usage.get(&path).map(|(total, avail)| {
                 if *total > 0 {
                     total.saturating_sub(*avail) as f32 / *total as f32
@@ -1957,8 +1973,8 @@ impl App {
                     0.0
                 }
             });
-            let selected = current_path.as_deref() == Some(path.as_path());
-            col = col.push(wmde_drive_entry(name, path, selected, fraction, ejectable));
+            let selected = active_location == Some(&location);
+            col = col.push(wmde_drive_entry(name, location, path, selected, fraction, ejectable));
         }
 
         // WMDE: permanent "Network" entry (like Windows Explorer), placed under Filesystem.
@@ -7793,6 +7809,7 @@ fn wmde_sidebar_entry(
 // ONE clickable button (the bar is part of the item; no separate "free" caption).
 fn wmde_drive_entry(
     name: String,
+    location: Location,
     path: PathBuf,
     selected: bool,
     fraction: Option<f32>,
@@ -7804,8 +7821,8 @@ fn wmde_drive_entry(
         space_xs,
         ..
     } = theme::spacing();
-    let mid_path = path.clone();
-    let eject_path = path.clone();
+    let mid_location = location.clone();
+    let eject_path = path;
     let label = widget::row::with_children(vec![
         icon::icon(icon::from_name("drive-harddisk-symbolic").size(16).handle())
             .size(16)
@@ -7831,7 +7848,7 @@ fn wmde_drive_entry(
         widget::button::custom(content)
             .on_press(Message::TabMessage(
                 None,
-                tab::Message::Location(Location::Path(path)),
+                tab::Message::Location(location),
             ))
             .padding([space_xxxs, space_xs])
             .class(if selected {
@@ -7841,9 +7858,7 @@ fn wmde_drive_entry(
             })
             .width(Length::Fill),
     )
-    .on_middle_press(move |_| {
-        Message::WmdeOpenInBackgroundTab(Location::Path(mid_path.clone()))
-    });
+    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_location.clone()));
 
     if ejectable {
         widget::row::with_children(vec![

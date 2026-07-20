@@ -2883,6 +2883,32 @@ async fn calculate_checksums(path: &Path) -> Result<FileChecksums, String> {
     .map_err(|e| e.to_string())?
 }
 
+// WMDE: split a network URI into breadcrumb segments (label, uri-up-to-here) so the address bar
+// renders clickable `smb://server/share > folder > subfolder` crumbs like the GNOME/Nautilus
+// pathbar. The first segment keeps the full `scheme://host/<first>` (the share root); deeper ones
+// are the path components. e.g. smb://172.17.6.2/terra/Work/soft ->
+//   [("smb://172.17.6.2/terra", "smb://172.17.6.2/terra"),
+//    ("Work", "smb://172.17.6.2/terra/Work"), ("soft", "smb://172.17.6.2/terra/Work/soft")]
+fn network_uri_segments(uri: &str) -> Vec<(String, String)> {
+    let trimmed = uri.trim_end_matches('/');
+    let Some((scheme, rest)) = trimmed.split_once("://") else {
+        return vec![(trimmed.to_string(), uri.to_string())];
+    };
+    let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let root = format!("{scheme}://{authority}");
+    let comps: Vec<&str> = path.split('/').filter(|c| !c.is_empty()).collect();
+    let Some((first, tail)) = comps.split_first() else {
+        return vec![(root.clone(), root)];
+    };
+    let mut acc = format!("{root}/{first}");
+    let mut segments = vec![(acc.clone(), acc.clone())];
+    for comp in tail {
+        acc = format!("{acc}/{comp}");
+        segments.push(((*comp).to_string(), acc.clone()));
+    }
+    segments
+}
+
 fn folder_name<P: AsRef<Path>>(path: P) -> (String, bool) {
     let path = path.as_ref();
     let mut found_home = false;
@@ -5604,17 +5630,55 @@ impl Tab {
                 );
             }
             Location::Network(uri, display_name, path) => {
-                children.push(
-                    widget::button::custom(widget::text::heading(display_name))
-                        .padding(space_xxxs)
-                        .on_press(Message::Location(Location::Network(
-                            uri.clone(),
-                            display_name.clone(),
-                            path.clone(),
-                        )))
-                        .class(theme::Button::Text)
-                        .into(),
-                );
+                // WMDE: the network:/// browse root stays a single "Networks" crumb; a real
+                // share renders clickable smb://server/share > folder > ... segments like the
+                // GNOME/Nautilus pathbar. The underlying items keep their FUSE path (carried in
+                // the Location's 3rd field) so file operations still work.
+                if uri == "network:///" {
+                    children.push(
+                        widget::button::custom(widget::text::heading(display_name))
+                            .padding(space_xxxs)
+                            .on_press(Message::Location(Location::Network(
+                                uri.clone(),
+                                display_name.clone(),
+                                path.clone(),
+                            )))
+                            .class(theme::Button::Text)
+                            .into(),
+                    );
+                } else {
+                    let segments = network_uri_segments(uri);
+                    let last = segments.len().saturating_sub(1);
+                    for (i, (label, seg_uri)) in segments.into_iter().enumerate() {
+                        if i > 0 {
+                            children.push(
+                                widget::icon::from_name("go-next-symbolic")
+                                    .size(16)
+                                    .icon()
+                                    .into(),
+                            );
+                        }
+                        // Clicking the current (last) segment opens the editable smb:// address;
+                        // ancestor segments navigate to that network location.
+                        let on_press = if i == last {
+                            Message::EditLocation(Some(self.location.clone().into()))
+                        } else {
+                            Message::Location(Location::Network(seg_uri, label.clone(), None))
+                        };
+                        let text = if i == 0 {
+                            widget::text::heading(label)
+                        } else {
+                            widget::text::body(label)
+                        };
+                        children.push(
+                            widget::button::custom(text)
+                                .padding(space_xxxs)
+                                .on_press(on_press)
+                                .class(theme::Button::Text)
+                                .into(),
+                        );
+                    }
+                }
             }
         }
 
