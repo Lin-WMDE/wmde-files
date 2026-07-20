@@ -2907,16 +2907,13 @@ fn network_uri_segments(uri: &str) -> Vec<(String, String)> {
         return vec![(trimmed.to_string(), uri.to_string())];
     };
     let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
-    let root = format!("{scheme}://{authority}");
-    let comps: Vec<&str> = path.split('/').filter(|c| !c.is_empty()).collect();
-    let Some((first, tail)) = comps.split_first() else {
-        return vec![(root.clone(), root)];
-    };
-    let mut acc = format!("{root}/{first}");
-    let mut segments = vec![(acc.clone(), acc.clone())];
-    for comp in tail {
+    // First crumb = the host (label without the scheme; the scheme is implied by the network
+    // icon), then one crumb per path component - like a local path: host > share > folder.
+    let mut acc = format!("{scheme}://{authority}");
+    let mut segments = vec![(authority.to_string(), acc.clone())];
+    for comp in path.split('/').filter(|c| !c.is_empty()) {
         acc = format!("{acc}/{comp}");
-        segments.push(((*comp).to_string(), acc.clone()));
+        segments.push((comp.to_string(), acc.clone()));
     }
     segments
 }

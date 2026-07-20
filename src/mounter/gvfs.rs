@@ -177,37 +177,32 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
             ItemMetadata::SimpleDir { entries: 0 }
         };
 
-        let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
-            let is_dir = metadata.is_dir();
-            let file_icon = |size| {
-                if is_dir {
-                    // WMDE: use the themed WMDE folder icon (teal) for network folders instead of
-                    // gio's generic full-colour folder; a mountable share gets the network-badged
-                    // variant. Matches how local folders are drawn (folder_icon in tab.rs).
+        // WMDE: draw network entries with the WMDE icon theme, matching local browsing - folders
+        // use the themed folder icon (folder / folder-remote for a mountable share), files use the
+        // mime icon guessed from the name - instead of gio's GIcon (a foreign full-colour icon).
+        let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) =
+            if metadata.is_dir() {
+                let dir_icon = |size| {
                     widget::icon::from_name(if is_mountable { "folder-remote" } else { "folder" })
                         .prefer_svg(true)
                         .size(size)
                         .handle()
-                } else {
-                    info.icon()
-                        .as_ref()
-                        .and_then(|icon| gio_icon_to_path(icon, size))
-                        .map(widget::icon::from_path)
-                        .unwrap_or(
-                            widget::icon::from_name("text-x-generic")
-                                .size(size)
-                                .handle(),
-                        )
-                }
+                };
+                (
+                    "inode/directory".parse().unwrap(),
+                    dir_icon(sizes.grid()),
+                    dir_icon(sizes.list()),
+                    dir_icon(sizes.list_condensed()),
+                )
+            } else {
+                let mime = crate::mime_icon::mime_for_path(&name, None, true);
+                (
+                    mime.clone(),
+                    crate::mime_icon::mime_icon(mime.clone(), sizes.grid()),
+                    crate::mime_icon::mime_icon(mime.clone(), sizes.list()),
+                    crate::mime_icon::mime_icon(mime, sizes.list_condensed()),
+                )
             };
-            (
-                //TODO: get mime from content_type?
-                "inode/directory".parse().unwrap(),
-                file_icon(sizes.grid()),
-                file_icon(sizes.list()),
-                file_icon(sizes.list_condensed()),
-            )
-        };
 
         // Check if item is hidden
         let hidden = name.starts_with('.')
