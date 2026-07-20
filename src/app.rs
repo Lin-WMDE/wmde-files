@@ -1961,6 +1961,23 @@ impl App {
             col = col.push(wmde_drive_entry(name, path, selected, fraction, ejectable));
         }
 
+        // WMDE: permanent "Network" entry (like Windows Explorer), placed under Filesystem.
+        // Opens network:/// to browse mounted shares and reach the "Add network drive" button.
+        // Shown only when a mounter backend (gvfs) is present, mirroring the upstream nav item.
+        if !MOUNTERS.is_empty() {
+            let net_selected = self.tab_model.active_data::<Tab>().is_some_and(|t| {
+                matches!(&t.location, Location::Network(uri, ..) if uri == "network:///")
+            });
+            col = col.push(wmde_sidebar_entry(
+                icon::from_name("network-workgroup-symbolic")
+                    .size(16)
+                    .handle(),
+                fl!("networks"),
+                Location::Network("network:///".to_string(), fl!("networks"), None),
+                net_selected,
+            ));
+        }
+
         widget::scrollable(col)
             .height(Length::Fill)
             .width(Length::Fixed(208.0))
