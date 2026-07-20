@@ -10,9 +10,12 @@ url="https://wmde.fun"
 license=('GPL-3.0-only')
 # depends: readelf NEEDED -> glib2/libxkbcommon/gcc-libs/glibc; wayland, mesa,
 # fontconfig and freetype2 are dlopen'd by libcosmic at runtime. Verify with namcap.
-depends=('glibc' 'gcc-libs' 'glib2' 'libxkbcommon' 'wayland' 'mesa' 'fontconfig' 'freetype2')
-optdepends=('gvfs: mount removable and network locations'
-            'cosmic-icons: COSMIC icon theme')
+# gvfs + gvfs-smb are hard deps: the file manager mounts removable and network
+# locations (SMB/FTP/NFS/SFTP/DAV) through gvfs, and the SMB backend lives in the
+# separate gvfs-smb package (pulls smbclient). Required so SMB works out of the box.
+depends=('glibc' 'gcc-libs' 'glib2' 'libxkbcommon' 'wayland' 'mesa' 'fontconfig' 'freetype2'
+         'gvfs' 'gvfs-smb')
+optdepends=('cosmic-icons: COSMIC icon theme')
 # makedepends: same toolchain/libs that build the fork in Docker (Dockerfile.build) + glib2.
 makedepends=('rust' 'cargo' 'just' 'git' 'clang' 'lld' 'pkgconf' 'glib2' 'mesa' 'wayland'
              'libxkbcommon' 'fontconfig' 'freetype2' 'expat' 'zstd')
