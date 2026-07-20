@@ -343,7 +343,9 @@ impl Default for TabConfig {
             military_time: false,
             show_hidden: false,
             single_click: false,
-            view: View::List,
+            // WMDE: default the file-manager view to icons (grid), like Windows Explorer.
+            // The open/save dialog view (DialogConfig) stays List on purpose.
+            view: View::Grid,
         }
     }
 }
