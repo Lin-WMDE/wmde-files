@@ -128,12 +128,25 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
         let name = info.name().to_string_lossy().into_owned();
         let display_name = String::from(info.display_name());
 
-        let uri = String::from(file.child(info.name()).uri());
+        // WMDE: a mountable (e.g. an SMB share listed under a server) exposes its real address
+        // in standard::target-uri; file.child(name).uri() yields a mangled "._name" form for it.
+        let is_mountable = matches!(info.file_type(), gio::FileType::Mountable);
+        let uri = if is_mountable {
+            info.attribute_string(gio::FILE_ATTRIBUTE_STANDARD_TARGET_URI)
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| String::from(file.child(info.name()).uri()))
+        } else {
+            String::from(file.child(info.name()).uri())
+        };
 
         //TODO: what is the best way to resolve shortcuts?
         let location = Location::Network(uri, display_name.clone(), file.child(&name).path());
 
-        let metadata = if !force_dir && !info.boolean(gio::FILE_ATTRIBUTE_FILESYSTEM_REMOTE) {
+        let metadata = if is_mountable {
+            // WMDE: treat a share/mountable as an openable directory so double-click navigates;
+            // it is mounted on demand when opened (see the DoubleClick handler in tab.rs).
+            ItemMetadata::SimpleDir { entries: 0 }
+        } else if !force_dir && !info.boolean(gio::FILE_ATTRIBUTE_FILESYSTEM_REMOTE) {
             let mtime = info.attribute_uint64(gio::FILE_ATTRIBUTE_TIME_MODIFIED);
             let is_dir = matches!(info.file_type(), gio::FileType::Directory);
             let size_opt = (!is_dir).then_some(info.size() as u64);

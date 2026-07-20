@@ -1740,6 +1740,9 @@ impl fmt::Debug for TaskWrapper {
 pub enum Command {
     Action(Action),
     AddNetworkDrive,
+    // WMDE: mount an unmounted network share (smb://server/share) then open it - the flow used
+    // when double-clicking a share in the server-browse listing (GNOME/Nautilus behaviour).
+    NetworkDriveOpen(String, String),
     AddToSidebar(PathBuf),
     AutoScroll(Option<f32>),
     ChangeLocation(String, Location, Option<Vec<PathBuf>>),
@@ -2889,6 +2892,15 @@ async fn calculate_checksums(path: &Path) -> Result<FileChecksums, String> {
 // are the path components. e.g. smb://172.17.6.2/terra/Work/soft ->
 //   [("smb://172.17.6.2/terra", "smb://172.17.6.2/terra"),
 //    ("Work", "smb://172.17.6.2/terra/Work"), ("soft", "smb://172.17.6.2/terra/Work/soft")]
+// WMDE: true if `uri` is a network share that must be mounted before it can be browsed
+// (scheme://host/<non-empty>, e.g. smb://server/share), as opposed to a bare server
+// (smb://server, browsable) or network:///.
+fn is_unmounted_share_uri(uri: &str) -> bool {
+    uri.split_once("://")
+        .and_then(|(_, rest)| rest.split_once('/'))
+        .is_some_and(|(_host, path)| !path.trim_matches('/').is_empty())
+}
+
 fn network_uri_segments(uri: &str) -> Vec<(String, String)> {
     let trimmed = uri.trim_end_matches('/');
     let Some((scheme, rest)) = trimmed.split_once("://") else {
@@ -3624,7 +3636,16 @@ impl Tab {
                 {
                     if let Some(location) = &clicked_item.location_opt {
                         if clicked_item.metadata.is_dir() {
-                            cd = Some(location.clone());
+                            // WMDE: an unmounted SMB share (network uri with a share component and
+                            // no FUSE path yet) is mounted on demand before opening, like GNOME
+                            // Files. Bare servers and already-mounted locations just navigate.
+                            if let Location::Network(uri, name, None) = location
+                                && is_unmounted_share_uri(uri)
+                            {
+                                commands.push(Command::NetworkDriveOpen(uri.clone(), name.clone()));
+                            } else {
+                                cd = Some(location.clone());
+                            }
                         } else if let Some(path) = location.path_opt() {
                             commands.push(Command::OpenFile(vec![path.clone()]));
                         } else {

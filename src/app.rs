@@ -4683,6 +4683,24 @@ impl Application for App {
                             self.context_page = ContextPage::NetworkDrive;
                             self.set_show_context(true);
                         }
+                        // WMDE: double-clicking an unmounted share in the server-browse listing
+                        // mounts it on demand (triggering the auth dialog if needed) and then
+                        // navigates the active tab into it, like GNOME Files.
+                        tab::Command::NetworkDriveOpen(uri, name) => {
+                            if let Some((_key, mounter)) = MOUNTERS.iter().next() {
+                                let nav_uri = uri.clone();
+                                commands.push(mounter.network_drive(uri).map(move |()| {
+                                    cosmic::Action::App(Message::TabMessage(
+                                        None,
+                                        tab::Message::Location(Location::Network(
+                                            nav_uri.clone(),
+                                            name.clone(),
+                                            None,
+                                        )),
+                                    ))
+                                }));
+                            }
+                        }
                         tab::Command::AddToSidebar(path) => {
                             let mut favorites = self.config.favorites.clone();
                             let favorite = Favorite::from_path(path);
