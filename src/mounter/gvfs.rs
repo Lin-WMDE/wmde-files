@@ -178,20 +178,27 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
         };
 
         let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
+            let is_dir = metadata.is_dir();
             let file_icon = |size| {
-                info.icon()
-                    .as_ref()
-                    .and_then(|icon| gio_icon_to_path(icon, size))
-                    .map(widget::icon::from_path)
-                    .unwrap_or(
-                        widget::icon::from_name(if metadata.is_dir() {
-                            "folder"
-                        } else {
-                            "text-x-generic"
-                        })
+                if is_dir {
+                    // WMDE: use the themed WMDE folder icon (teal) for network folders instead of
+                    // gio's generic full-colour folder; a mountable share gets the network-badged
+                    // variant. Matches how local folders are drawn (folder_icon in tab.rs).
+                    widget::icon::from_name(if is_mountable { "folder-remote" } else { "folder" })
+                        .prefer_svg(true)
                         .size(size)
-                        .handle(),
-                    )
+                        .handle()
+                } else {
+                    info.icon()
+                        .as_ref()
+                        .and_then(|icon| gio_icon_to_path(icon, size))
+                        .map(widget::icon::from_path)
+                        .unwrap_or(
+                            widget::icon::from_name("text-x-generic")
+                                .size(size)
+                                .handle(),
+                        )
+                }
             };
             (
                 //TODO: get mime from content_type?
