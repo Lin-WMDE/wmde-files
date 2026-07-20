@@ -293,12 +293,6 @@ pub fn wmde_input_style() -> theme::TextInput {
 // leading icon and the tab icon so they always match. Exhaustive over Location.
 pub fn wmde_location_icon(location: &Location) -> widget::icon::Handle {
     match location {
-        // WMDE: network icon when inside a gvfs network mount (matches the smb:// address).
-        Location::Path(p) | Location::Desktop(p, ..) if path_in_gvfs(p) => {
-            widget::icon::from_name("network-workgroup-symbolic")
-                .size(16)
-                .handle()
-        }
         Location::Path(p) | Location::Desktop(p, ..) => folder_icon_symbolic(p, 16),
         // static icon (no IO): this runs every render in location_view, so avoid
         // Trash::icon_symbolic which scans the trash dir to pick empty/full
@@ -2887,49 +2881,6 @@ async fn calculate_checksums(path: &Path) -> Result<FileChecksums, String> {
     })
     .await
     .map_err(|e| e.to_string())?
-}
-
-// WMDE: if `path` is a gvfs FUSE mount root (`<runtime>/gvfs/<mountdir>`), reconstruct the
-// network URI (smb://server/share, sftp://host/, ...) so the breadcrumbs can show the network
-// address instead of the raw /run/user/N/gvfs/<mountdir> path. Pure string parsing, no IO.
-fn gvfs_mount_uri(path: &Path) -> Option<String> {
-    // gvfs mounts live at $XDG_RUNTIME_DIR/gvfs, so the parent dir must be named `gvfs`.
-    if path.parent()?.file_name()?.to_str()? != "gvfs" {
-        return None;
-    }
-    let mount = path.file_name()?.to_str()?;
-    let (scheme, params_str) = mount.split_once(':')?;
-    let (mut server, mut share, mut user, mut volume, mut ssl) = (None, None, None, None, false);
-    for kv in params_str.split(',') {
-        let Some((k, v)) = kv.split_once('=') else {
-            continue;
-        };
-        match k {
-            "server" | "host" => server = Some(v),
-            "share" => share = Some(v),
-            "user" => user = Some(v),
-            "volume" => volume = Some(v),
-            "ssl" => ssl = v == "true",
-            _ => {}
-        }
-    }
-    let host = server?;
-    let userinfo = user.map_or_else(String::new, |u| format!("{u}@"));
-    let uri = match scheme {
-        "smb-share" => format!("smb://{userinfo}{host}/{}", share?),
-        "sftp" => format!("sftp://{userinfo}{host}/"),
-        "ftp" => format!("ftp://{userinfo}{host}/"),
-        "dav" => format!("{}://{userinfo}{host}/", if ssl { "davs" } else { "dav" }),
-        "nfs" => format!("nfs://{host}/"),
-        "afp-volume" => format!("afp://{userinfo}{host}/{}", volume?),
-        _ => return None,
-    };
-    Some(uri)
-}
-
-// WMDE: true if any ancestor of `path` is a gvfs network mount root.
-fn path_in_gvfs(path: &Path) -> bool {
-    path.ancestors().any(|a| gvfs_mount_uri(a).is_some())
 }
 
 fn folder_name<P: AsRef<Path>>(path: P) -> (String, bool) {
@@ -5551,13 +5502,7 @@ impl Tab {
                 let excess_str = "...";
                 let excess_width = text_width_body(excess_str);
                 for (index, ancestor) in path.ancestors().enumerate() {
-                    let (mut name, found_home) = folder_name(ancestor);
-                    // WMDE: render a gvfs network mount root as its URI (smb://server/share)
-                    // and stop the breadcrumb there, hiding the /run/user/N/gvfs/... prefix.
-                    let net_root = gvfs_mount_uri(ancestor);
-                    if let Some(uri) = &net_root {
-                        name = uri.clone();
-                    }
+                    let (name, found_home) = folder_name(ancestor);
                     let (name_width, name_text) = if children.is_empty() {
                         (
                             text_width_heading(&name),
@@ -5634,7 +5579,7 @@ impl Tab {
 
                     children.push(self.dnd_dest(&location, mouse_area));
 
-                    if found_home || overflow || net_root.is_some() {
+                    if found_home || overflow {
                         break;
                     }
                 }
