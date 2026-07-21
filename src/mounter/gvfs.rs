@@ -104,6 +104,12 @@ fn items(monitor: &gio::VolumeMonitor, sizes: IconSizes) -> MounterItems {
 }
 
 fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
+    // WMDE: the network:/// root is a device list (Windows-like "Network neighbourhood").
+    // Arch's gvfs has no working discovery backends here, so populate it ourselves from
+    // mDNS (Avahi) + WS-Discovery instead of the (empty) gio enumeration.
+    if uri == "network:///" {
+        return Ok(discovered_device_items(sizes));
+    }
     let force_dir = uri.starts_with("network:///");
     let (_, file) = resolve_uri(uri);
 
@@ -235,6 +241,52 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
         });
     }
     Ok(items)
+}
+
+/// WMDE: build network:/// items from LAN device discovery (mDNS + WSD). Computers open into
+/// an SMB server-browse; printers/scanners are shown as informational icons.
+fn discovered_device_items(sizes: IconSizes) -> Vec<tab::Item> {
+    use crate::network_discovery::{DeviceKind, discover_devices};
+    discover_devices()
+        .into_iter()
+        .map(|device| {
+            let icon_name = match device.kind {
+                DeviceKind::Computer => "network-server",
+                DeviceKind::Printer => "printer",
+                DeviceKind::Scanner => "scanner",
+                DeviceKind::Other => "network-workgroup",
+            };
+            let icon =
+                |size| widget::icon::from_name(icon_name).prefer_svg(true).size(size).handle();
+            // Only computers are navigable (open the SMB server-browse); other kinds are info.
+            let location_opt = matches!(device.kind, DeviceKind::Computer).then(|| {
+                Location::Network(format!("smb://{}/", device.addr), device.name.clone(), None)
+            });
+            tab::Item {
+                name: device.name.clone(),
+                is_mount_point: false,
+                display_name: device.name,
+                metadata: ItemMetadata::SimpleDir { entries: 0 },
+                hidden: false,
+                location_opt,
+                image_dimensions: None,
+                mime: "inode/directory".parse().unwrap(),
+                icon_handle_grid: icon(sizes.grid()),
+                icon_handle_list: icon(sizes.list()),
+                icon_handle_list_condensed: icon(sizes.list_condensed()),
+                thumbnail_opt: Some(ItemThumbnail::NotImage),
+                button_id: widget::Id::unique(),
+                pos_opt: Cell::new(None),
+                rect_opt: Cell::new(None),
+                selected: false,
+                highlighted: false,
+                overlaps_drag_rect: false,
+                dir_size: DirSize::NotDirectory,
+                cut: false,
+                checksums: ChecksumState::default(),
+            }
+        })
+        .collect()
 }
 
 fn dir_info(uri: &str) -> Result<(String, String, Option<PathBuf>), glib::Error> {

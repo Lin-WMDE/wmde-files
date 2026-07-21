@@ -29,6 +29,8 @@ notify-rust = { version = "4", optional = true }
 open = "5.3.4"
 paste = "1.0"
 regex = "1"
+# WMDE: parse WS-Discovery SOAP responses for network:/// device discovery.
+roxmltree = "0.20"
 rustc-hash = "2.1"
 serde = { version = "1", features = ["serde_derive"] }
 shlex = { version = "1.3" }

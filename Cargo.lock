@@ -8858,6 +8858,7 @@ dependencies = [
  "procfs",
  "recently-used-xbel",
  "regex",
+ "roxmltree",
  "rust-embed",
  "rustc-hash 2.1.3",
  "serde",

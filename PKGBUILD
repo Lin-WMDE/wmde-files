@@ -13,8 +13,10 @@ license=('GPL-3.0-only')
 # gvfs + gvfs-smb are hard deps: the file manager mounts removable and network
 # locations (SMB/FTP/NFS/SFTP/DAV) through gvfs, and the SMB backend lives in the
 # separate gvfs-smb package (pulls smbclient). Required so SMB works out of the box.
+# avahi provides avahi-browse used to populate network:/// via mDNS (needs avahi-daemon
+# running - enabled at the WMDE session/stack level).
 depends=('glibc' 'gcc-libs' 'glib2' 'libxkbcommon' 'wayland' 'mesa' 'fontconfig' 'freetype2'
-         'gvfs' 'gvfs-smb')
+         'gvfs' 'gvfs-smb' 'avahi')
 optdepends=('cosmic-icons: COSMIC icon theme')
 # makedepends: same toolchain/libs that build the fork in Docker (Dockerfile.build) + glib2.
 makedepends=('rust' 'cargo' 'just' 'git' 'clang' 'lld' 'pkgconf' 'glib2' 'mesa' 'wayland'
