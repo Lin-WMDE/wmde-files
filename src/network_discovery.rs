@@ -52,7 +52,95 @@ pub fn discover_devices() -> Vec<Device> {
     for device in mdns_devices.into_iter().chain(wsd_devices) {
         merge(&mut by_addr, device);
     }
-    by_addr.into_values().collect()
+
+    let mut devices: Vec<Device> = by_addr.into_values().collect();
+    // Name any host still labelled by its bare IP (a WSD host whose WS-Transfer Get was
+    // firewalled, or an SMB host without an mDNS name) via a NetBIOS node-status query -
+    // reliable for Windows/Samba even with SMB1 browsing off. Run in parallel.
+    let handles: Vec<_> = devices
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| looks_like_addr(&d.name))
+        .map(|(i, d)| {
+            let addr = d.addr.clone();
+            std::thread::spawn(move || (i, netbios_name(&addr)))
+        })
+        .collect();
+    for handle in handles {
+        if let Ok((i, Some(name))) = handle.join() {
+            devices[i].name = name;
+        }
+    }
+    devices
+}
+
+/// NetBIOS node-status (NBSTAT) query over UDP 137 for a host's computer name. Works for
+/// Windows/Samba hosts even when SMB1 browsing is off. Returns the unique workstation name.
+fn netbios_name(ip: &str) -> Option<String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket
+        .set_read_timeout(Some(Duration::from_millis(1200)))
+        .ok()?;
+
+    // Header: txn id, flags=0, qdcount=1, others 0.
+    let mut query: Vec<u8> = vec![
+        0x13, 0x37, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    // Question: first-level-encoded wildcard name "*" (+ 15 NUL bytes), then NBSTAT/IN.
+    let mut raw = [0u8; 16];
+    raw[0] = b'*';
+    query.push(0x20); // encoded length
+    for b in raw {
+        query.push(0x41 + (b >> 4));
+        query.push(0x41 + (b & 0x0f));
+    }
+    query.push(0x00); // name terminator
+    query.extend_from_slice(&[0x00, 0x21, 0x00, 0x01]); // qtype NBSTAT, qclass IN
+
+    socket.send_to(&query, (ip, 137)).ok()?;
+    let mut buf = [0u8; 2048];
+    let (n, _) = socket.recv_from(&mut buf).ok()?;
+    let data = &buf[..n];
+
+    // The type/class marker (00 21 00 01) appears in both the echoed question and the
+    // answer RR; try each position and parse the one that yields a valid name table.
+    let markers: Vec<usize> = (0..data.len().saturating_sub(3))
+        .filter(|&i| data[i..i + 4] == [0x00, 0x21, 0x00, 0x01])
+        .collect();
+    for pos in markers {
+        let rd = pos + 4 + 4 + 2; // skip type+class, ttl, rdlength
+        let Some(&num) = data.get(rd) else { continue };
+        let num = num as usize;
+        if num == 0 || num > 100 {
+            continue;
+        }
+        let mut p = rd + 1;
+        let mut ok = true;
+        let mut name_opt = None;
+        for _ in 0..num {
+            let (Some(name_bytes), Some(&suffix), Some(flags)) =
+                (data.get(p..p + 15), data.get(p + 15), data.get(p + 16..p + 18))
+            else {
+                ok = false;
+                break;
+            };
+            let is_group = flags[0] & 0x80 != 0;
+            // The unique (non-group) name with suffix 0x00 is the computer name.
+            if name_opt.is_none() && !is_group && suffix == 0x00 {
+                let name = String::from_utf8_lossy(name_bytes).trim().to_string();
+                if !name.is_empty() {
+                    name_opt = Some(name);
+                }
+            }
+            p += 18;
+        }
+        if ok {
+            if let Some(name) = name_opt {
+                return Some(name);
+            }
+        }
+    }
+    None
 }
 
 fn merge(map: &mut BTreeMap<String, Device>, device: Device) {
