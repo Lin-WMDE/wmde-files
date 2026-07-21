@@ -1679,7 +1679,17 @@ impl Location {
             Self::Recents => {
                 fl!("recents")
             }
-            Self::Network(display_name, ..) => display_name.clone(),
+            // WMDE: the first tuple field is the URI, not a name - reading it made tabs read
+            // "network:///" or "smb://host/share/". Use the human display name (already the
+            // localized "Networks" for the network:/// root, the share/host name elsewhere),
+            // falling back to the URI only if it is empty.
+            Self::Network(uri, display_name, _) => {
+                if display_name.is_empty() {
+                    uri.clone()
+                } else {
+                    display_name.clone()
+                }
+            }
         }
     }
 
