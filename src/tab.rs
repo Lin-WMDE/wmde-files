@@ -162,16 +162,18 @@ fn button_appearance(
     let cosmic = theme.cosmic();
     let mut appearance = widget::button::Style::new();
     if selected {
-        if accent {
-            appearance.background = Some(Color::from(cosmic.accent_color()).into());
-            appearance.icon_color = Some(Color::from(cosmic.on_accent_color()));
-            if cut {
-                appearance.text_color = Some(Color::from(cosmic.accent.on_disabled));
-            } else {
-                appearance.text_color = Some(Color::from(cosmic.on_accent_color()));
-            }
-        } else {
-            appearance.background = Some(Color::from(cosmic.bg_component_color()).into());
+        // WMDE: Windows-style selection - a translucent wash with a 1px brighter border, and
+        // the label keeps its normal colour instead of being inverted onto a solid accent
+        // fill. The grid and desktop views paint this on a wrapping container instead (so the
+        // icon and the label share one rectangle) and therefore never reach this branch.
+        let (fill, border) = selection_colors(theme, desktop);
+        appearance.background = Some(fill.into());
+        appearance.border_width = 1.0;
+        appearance.border_color = border;
+        if cut {
+            appearance.text_color = Some(Color::from(
+                cosmic.background(theme.transparent).component.on_disabled,
+            ));
         }
     } else if highlighted {
         if accent {
@@ -212,6 +214,62 @@ fn button_appearance(
     // WMDE: selection/hover highlight rounding fixed at 2 (general rounding stays 4)
     appearance.border_radius = [2.0; 4].into();
     appearance
+}
+
+// WMDE: Windows-style selection - a translucent wash with a 1px brighter border, drawn as ONE
+// rectangle around the whole item (icon + label) instead of two separate solid boxes. Alphas
+// measured off w10/icon_selection.png: over the background the fill is the wash colour at ~12%
+// and the border at ~34%. Desktop icons wash with neutral white, exactly like the Win10
+// desktop; in the file manager the accent is used (as Explorer does), because a white wash is
+// invisible on a light background.
+fn selection_colors(theme: &theme::Theme, desktop: bool) -> (Color, Color) {
+    if desktop {
+        (
+            Color {
+                a: 0.12,
+                ..Color::WHITE
+            },
+            Color {
+                a: 0.34,
+                ..Color::WHITE
+            },
+        )
+    } else {
+        let accent = Color::from(theme.cosmic().accent_color());
+        (Color { a: 0.20, ..accent }, Color { a: 0.55, ..accent })
+    }
+}
+
+/// WMDE: container style that paints the selection (and the drag/hover highlight) for a grid
+/// item, so the icon and its label share a single rectangle.
+fn selection_container(
+    selected: bool,
+    highlighted: bool,
+    desktop: bool,
+) -> theme::Container<'static> {
+    theme::Container::custom(move |theme| {
+        let mut style = widget::container::Style::default();
+        if selected {
+            let (fill, border) = selection_colors(theme, desktop);
+            style.background = Some(fill.into());
+            style.border = Border {
+                color: border,
+                width: 1.0,
+                radius: 0.0.into(),
+            };
+        } else if highlighted {
+            // Drag-over / hover: the same wash, weaker, and without the border.
+            let (fill, _) = selection_colors(theme, desktop);
+            style.background = Some(
+                Color {
+                    a: fill.a * 0.5,
+                    ..fill
+                }
+                .into(),
+            );
+        }
+        style
+    })
 }
 
 fn button_style(
@@ -5980,21 +6038,17 @@ impl Tab {
                                 .size(icon_sizes.grid()),
                         )
                         .padding(space_xxxs)
-                        .class(button_style(
-                            item.selected,
-                            item.highlighted,
-                            item.cut,
-                            false,
-                            false,
-                        ))
+                        // WMDE: selection/highlight is painted once on the wrapping container
+                        // below, so the icon and the label share a single rectangle.
+                        .class(button_style(false, false, item.cut, false, false))
                         .into(),
                         widget::tooltip(
                             widget::button::custom(Item::grid_display_name(&item.display_name))
                                 .id(item.button_id.clone())
                                 .padding([0, space_xxxs])
                                 .class(button_style(
-                                    item.selected,
-                                    item.highlighted,
+                                    false,
+                                    false,
                                     item.cut,
                                     true,
                                     matches!(self.mode, Mode::Desktop),
@@ -6025,6 +6079,17 @@ impl Tab {
                             );
                         }
                     }
+
+                    // WMDE: one selection rectangle around the whole cell (icon + label), the
+                    // way Windows draws it - see selection_container().
+                    let column = widget::container(column)
+                        .class(selection_container(
+                            item.selected,
+                            item.highlighted,
+                            matches!(self.mode, Mode::Desktop),
+                        ))
+                        .width(Length::Fixed(item_width as f32))
+                        .height(Length::Fixed(item_height as f32));
 
                     let column: Element<Message> =
                         if item.metadata.is_dir() && item.location_opt.is_some() {
@@ -6147,26 +6212,15 @@ impl Tab {
                             )
                             .on_press(Message::Click(Some(*i)))
                             .padding(space_xxxs)
-                            .class(button_style(
-                                item.selected,
-                                item.highlighted,
-                                item.cut,
-                                false,
-                                false,
-                            )),
+                            // WMDE: painted once on the wrapping container, as in grid_view.
+                            .class(button_style(false, false, item.cut, false, false)),
                             widget::button::custom(Item::grid_display_name(
                                 item.display_name.clone(),
                             ))
                             .id(item.button_id.clone())
                             .on_press(Message::Click(Some(*i)))
                             .padding([0, space_xxxs])
-                            .class(button_style(
-                                item.selected,
-                                item.highlighted,
-                                item.cut,
-                                true,
-                                false,
-                            )),
+                            .class(button_style(false, false, item.cut, true, false)),
                         ];
 
                         let column =
@@ -6174,6 +6228,11 @@ impl Tab {
                                 .align_x(Alignment::Center)
                                 .height(Length::Fixed(item_height as f32))
                                 .width(Length::Fixed(item_width as f32));
+
+                        let column = widget::container(column)
+                            .class(selection_container(item.selected, item.highlighted, false))
+                            .width(Length::Fixed(item_width as f32))
+                            .height(Length::Fixed(item_height as f32));
 
                         dnd_grid = dnd_grid.push(column);
                         dnd_item_i += 1;
