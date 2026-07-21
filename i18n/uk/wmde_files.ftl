@@ -1,6 +1,7 @@
 wmde-files = WMDE Files
 empty-folder = Порожня тека
 empty-folder-hidden = Порожня тека (містить приховані елементи)
+searching-network = Пошук у мережі...
 filesystem = Файлова система
 home = Домівка
 trash = Смітник

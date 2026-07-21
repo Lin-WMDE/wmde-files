@@ -12,7 +12,10 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream, ToSocketAddrs, UdpSocket};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// Kind of a discovered device, ordered by display priority (a device that offers
 /// several services is shown as the highest-priority kind: a file server that also
@@ -40,9 +43,66 @@ const WSD_TIMEOUT: Duration = Duration::from_millis(1800);
 const WSD_RECV_SLICE: Duration = Duration::from_millis(300);
 const WSD_GET_BUDGET: Duration = Duration::from_millis(1500);
 
+// ---------------------------------------------------------------------------
+// Cache + background refresh
+// ---------------------------------------------------------------------------
+// network:/// renders the last cached result instantly and kicks a background refresh; the
+// UI is pinged via the update channel when the refresh completes, so the view updates in
+// place (a spinner shows only while the very first discovery is running).
+
+/// How long a discovery result is considered fresh. Longer than the discovery time so the
+/// update-triggered re-scan does not immediately kick another refresh (which would loop).
+const CACHE_TTL: Duration = Duration::from_secs(10);
+
+static CACHE: LazyLock<Mutex<Vec<Device>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static LAST_REFRESH: LazyLock<Mutex<Option<Instant>>> = LazyLock::new(|| Mutex::new(None));
+static REFRESHING: AtomicBool = AtomicBool::new(false);
+static UPDATE_CHANNEL: LazyLock<(UnboundedSender<()>, Mutex<Option<UnboundedReceiver<()>>>)> =
+    LazyLock::new(|| {
+        let (tx, rx) = unbounded_channel();
+        (tx, Mutex::new(Some(rx)))
+    });
+
+/// The last discovered device list (empty before the first discovery completes).
+pub fn cached_devices() -> Vec<Device> {
+    CACHE.lock().unwrap().clone()
+}
+
+/// Whether a background discovery is currently running (drives the loading indicator).
+pub fn is_refreshing() -> bool {
+    REFRESHING.load(Ordering::Relaxed)
+}
+
+/// Kick a background discovery unless one is already running. Updates the cache and pings
+/// the update channel on completion so the UI can re-scan network:///.
+pub fn refresh_devices() {
+    // Skip if the cache is still fresh - this is what stops the update-triggered re-scan
+    // from kicking an endless chain of refreshes.
+    if let Some(t) = *LAST_REFRESH.lock().unwrap() {
+        if t.elapsed() < CACHE_TTL {
+            return;
+        }
+    }
+    if REFRESHING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(|| {
+        let devices = discover_devices();
+        *CACHE.lock().unwrap() = devices;
+        *LAST_REFRESH.lock().unwrap() = Some(Instant::now());
+        REFRESHING.store(false, Ordering::SeqCst);
+        let _ = UPDATE_CHANNEL.0.send(());
+    });
+}
+
+/// Take the single update receiver (consumed once by the app's discovery subscription).
+pub fn take_update_receiver() -> Option<UnboundedReceiver<()>> {
+    UPDATE_CHANNEL.1.lock().unwrap().take()
+}
+
 /// Discover LAN devices via mDNS and WSD concurrently, then merge + dedup by address.
 /// Best-effort: any failing source contributes nothing rather than erroring.
-pub fn discover_devices() -> Vec<Device> {
+fn discover_devices() -> Vec<Device> {
     let mdns = std::thread::spawn(mdns_avahi);
     let wsd = std::thread::spawn(wsd_probe);
 

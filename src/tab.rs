@@ -5759,6 +5759,29 @@ impl Tab {
     pub fn empty_view(&self, has_hidden: bool) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::spacing();
 
+        // WMDE: while network:/// is running its first device discovery, show a "searching"
+        // loader instead of the "Empty folder" placeholder.
+        #[cfg(feature = "gvfs")]
+        if matches!(&self.location, Location::Network(uri, ..) if uri == "network:///")
+            && crate::network_discovery::is_refreshing()
+        {
+            return mouse_area::MouseArea::new(widget::column::with_children([widget::container(
+                widget::column::with_children([
+                    widget::icon::from_name("network-workgroup-symbolic")
+                        .size(64)
+                        .icon()
+                        .into(),
+                    widget::text::body(fl!("searching-network")).into(),
+                ])
+                .align_x(Alignment::Center)
+                .spacing(space_xxs),
+            )
+            .center(Length::Fill)
+            .into()]))
+            .on_press(|_| Message::Click(None))
+            .into();
+        }
+
         mouse_area::MouseArea::new(widget::column::with_children([widget::container(
             match self.mode {
                 Mode::App | Mode::Dialog(_) => widget::column::with_children([

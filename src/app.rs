@@ -387,6 +387,8 @@ pub enum Message {
     },
     NetworkDriveSubmit,
     NetworkResult(MounterKey, String, Result<bool, String>),
+    // WMDE: a background network:/// device discovery finished; re-scan any network:/// tab.
+    NetworkDiscoveryUpdated,
     NewItem(Option<Entity>, bool),
     #[cfg(feature = "notify")]
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
@@ -3838,6 +3840,27 @@ impl Application for App {
                     }
                 }
             }
+            #[cfg(feature = "gvfs")]
+            Message::NetworkDiscoveryUpdated => {
+                // A background discovery finished - re-scan any tab currently at network:///
+                // so it picks up the fresh (cached) device list in place.
+                let reloads: Vec<(Entity, Location)> = self
+                    .tab_model
+                    .iter()
+                    .filter_map(|entity| {
+                        let tab = self.tab_model.data::<Tab>(entity)?;
+                        matches!(&tab.location, Location::Network(uri, ..) if uri == "network:///")
+                            .then(|| (entity, tab.location.clone()))
+                    })
+                    .collect();
+                return Task::batch(
+                    reloads
+                        .into_iter()
+                        .map(|(entity, location)| self.update_tab(entity, location, None)),
+                );
+            }
+            #[cfg(not(feature = "gvfs"))]
+            Message::NetworkDiscoveryUpdated => {}
             Message::NewItem(entity_opt, dir) => {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity)
@@ -6965,6 +6988,8 @@ impl Application for App {
         struct WatcherSubscription;
         struct TrashWatcherSubscription;
         struct TimeSubscription;
+        #[cfg(feature = "gvfs")]
+        struct NetworkDiscoverySubscription;
         #[cfg(all(
             not(feature = "desktop-applet"),
             not(target_os = "ios"),
@@ -7283,6 +7308,25 @@ impl Application for App {
                     .map(|(scroll_speed, _)| Message::ScrollTab(scroll_speed)),
             );
         }
+
+        // WMDE: signal from the background network:/// device discovery -> re-scan network:/// tabs.
+        #[cfg(feature = "gvfs")]
+        subscriptions.push(Subscription::run_with(
+            TypeId::of::<NetworkDiscoverySubscription>(),
+            |_| {
+                stream::channel(
+                    1,
+                    |mut output: futures::channel::mpsc::Sender<Message>| async move {
+                        if let Some(mut rx) = crate::network_discovery::take_update_receiver() {
+                            while rx.recv().await.is_some() {
+                                let _ = output.send(Message::NetworkDiscoveryUpdated).await;
+                            }
+                        }
+                        std::future::pending().await
+                    },
+                )
+            },
+        ));
 
         subscriptions.extend(MOUNTERS.iter().map(|(key, mounter)| {
             mounter

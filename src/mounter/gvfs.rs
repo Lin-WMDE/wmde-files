@@ -246,8 +246,11 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
 /// WMDE: build network:/// items from LAN device discovery (mDNS + WSD). Computers open into
 /// an SMB server-browse; printers/scanners are shown as informational icons.
 fn discovered_device_items(sizes: IconSizes) -> Vec<tab::Item> {
-    use crate::network_discovery::{DeviceKind, discover_devices};
-    discover_devices()
+    use crate::network_discovery::{DeviceKind, cached_devices, refresh_devices};
+    // Kick a background refresh (a no-op if one is already running) and render the last
+    // cached result immediately; the view updates in place when the refresh completes.
+    refresh_devices();
+    cached_devices()
         .into_iter()
         .map(|device| {
             let icon_name = match device.kind {

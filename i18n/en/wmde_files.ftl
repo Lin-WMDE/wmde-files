@@ -3,6 +3,7 @@ comment = File manager for the COSMIC desktop
 keywords = Folder;Manager;
 empty-folder = Empty folder
 empty-folder-hidden = Empty folder (has hidden items)
+searching-network = Searching the network...
 no-results = No results found
 filesystem = Filesystem
 home = Home
