@@ -4683,11 +4683,23 @@ impl Application for App {
                             self.context_page = ContextPage::NetworkDrive;
                             self.set_show_context(true);
                         }
-                        // WMDE: double-clicking an unmounted share in the server-browse listing
-                        // mounts it on demand (triggering the auth dialog if needed) and then
-                        // navigates the active tab into it, like GNOME Files.
+                        // WMDE: double-clicking a share in the server-browse listing opens it. If
+                        // it is already mounted (e.g. opened earlier from the sidebar) just navigate
+                        // in - the server-browse child has no FUSE path so the tab can't tell on its
+                        // own, and calling network_drive again would error "already mounted".
+                        // Otherwise mount it on demand (auth dialog if needed) then navigate, like
+                        // GNOME Files.
                         tab::Command::NetworkDriveOpen(uri, name) => {
-                            if let Some((_key, mounter)) = MOUNTERS.iter().next() {
+                            let already_mounted = self.mounter_items.values().flatten().any(|item| {
+                                item.is_mounted()
+                                    && item.uri().trim_end_matches('/') == uri.trim_end_matches('/')
+                            });
+                            if already_mounted {
+                                commands.push(self.update(Message::TabMessage(
+                                    None,
+                                    tab::Message::Location(Location::Network(uri, name, None)),
+                                )));
+                            } else if let Some((_key, mounter)) = MOUNTERS.iter().next() {
                                 let nav_uri = uri.clone();
                                 commands.push(mounter.network_drive(uri).map(move |()| {
                                     cosmic::Action::App(Message::TabMessage(
