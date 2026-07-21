@@ -4736,6 +4736,10 @@ impl Application for App {
                                 }));
                             }
                         }
+                        // WMDE: a discovered device's web UI (printer admin page) -> browser.
+                        tab::Command::LaunchUrl(url) => {
+                            commands.push(self.update(Message::LaunchUrl(url)));
+                        }
                         tab::Command::AddToSidebar(path) => {
                             let mut favorites = self.config.favorites.clone();
                             let favorite = Favorite::from_path(path);

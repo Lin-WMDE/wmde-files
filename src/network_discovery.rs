@@ -32,9 +32,18 @@ pub enum DeviceKind {
 pub struct Device {
     /// Display label (host or friendly name).
     pub name: String,
-    /// IPv4 address, used both as the dedup key and for the `smb://` link.
+    /// IPv4 address, used both as the dedup key and to build the access URI.
     pub addr: String,
     pub kind: DeviceKind,
+    /// URI to browse this device with, using the scheme of the service it actually
+    /// advertises (`smb://`, `sftp://`, `ftp://`, `nfs://`, `dav://`). `None` when the
+    /// device offers nothing browsable (a printer, say).
+    pub open_uri: Option<String>,
+    /// Web UI (a printer's admin page, a NAS front-end). Opened in a browser rather than
+    /// navigated to in the file manager.
+    pub web_url: Option<String>,
+    /// One-line summary for the tooltip: address, host name and advertised services.
+    pub details: String,
 }
 
 const WSD_MCAST: &str = "239.255.255.250:3702";
@@ -93,6 +102,13 @@ pub fn refresh_devices() {
         REFRESHING.store(false, Ordering::SeqCst);
         let _ = UPDATE_CHANNEL.0.send(());
     });
+}
+
+/// Force a re-discovery even if the cache is still fresh - what an explicit user reload
+/// (F5 / the address-bar refresh button) should do. A refresh already in flight is kept.
+pub fn force_refresh_devices() {
+    *LAST_REFRESH.lock().unwrap() = None;
+    refresh_devices();
 }
 
 /// Take the single update receiver (consumed once by the app's discovery subscription).
@@ -219,6 +235,29 @@ fn merge(map: &mut BTreeMap<String, Device>, device: Device) {
             {
                 existing.name = device.name;
             }
+            // Keep the first known browsable/web URI; the other source only fills gaps.
+            if existing.open_uri.is_none() {
+                existing.open_uri = device.open_uri;
+            }
+            if existing.web_url.is_none() {
+                existing.web_url = device.web_url;
+            }
+            // Both sources describe the same box - join their summaries. Each summary starts
+            // with the shared address, so strip that prefix instead of repeating it.
+            if !device.details.is_empty() {
+                if existing.details.is_empty() {
+                    existing.details = device.details;
+                } else {
+                    let extra = device
+                        .details
+                        .strip_prefix(existing.addr.as_str())
+                        .map(|rest| rest.trim_start_matches([' ', '-']))
+                        .unwrap_or(device.details.as_str());
+                    if !extra.is_empty() && !existing.details.contains(extra) {
+                        existing.details = format!("{} - {}", existing.details, extra);
+                    }
+                }
+            }
         }
         None => {
             map.insert(device.addr.clone(), device);
@@ -251,6 +290,71 @@ fn kind_for_service(service_type: &str) -> DeviceKind {
     }
 }
 
+/// The URI a service can be browsed with, plus a preference rank (lower wins) so a host
+/// advertising several protocols is opened with the most useful one. Returns `None` for
+/// services that are not browsable in a file manager (printers, web pages, ...).
+fn access_uri(service_type: &str, addr: &str) -> Option<(u8, String)> {
+    // Match the DNS-SD label exactly ("_<label>._tcp"), never a substring: "_tftp._udp" and
+    // "_ftps._tcp" must not fall into the plain-ftp branch, nor "_webdavs" into "webdav".
+    match service_label_key(service_type).as_str() {
+        "smb" => Some((0, format!("smb://{addr}/"))),
+        "sftp-ssh" | "ssh" => Some((1, format!("sftp://{addr}/"))),
+        "ftp" => Some((2, format!("ftp://{addr}/"))),
+        "ftps" => Some((2, format!("ftps://{addr}/"))),
+        "afpovertcp" | "afp" => Some((3, format!("afp://{addr}/"))),
+        "nfs" => Some((4, format!("nfs://{addr}/"))),
+        "webdav" | "dav" => Some((5, format!("dav://{addr}/"))),
+        "webdavs" | "davs" => Some((5, format!("davs://{addr}/"))),
+        _ => None,
+    }
+}
+
+/// The bare DNS-SD label of a service type: `_sftp-ssh._tcp` -> `sftp-ssh`.
+fn service_label_key(service_type: &str) -> String {
+    service_type
+        .to_ascii_lowercase()
+        .trim_start_matches('_')
+        .split('.')
+        .next()
+        .unwrap_or("")
+        .to_string()
+}
+
+/// Short label for a service, used to build the tooltip summary.
+fn service_label(service_type: &str) -> Option<&'static str> {
+    // Label-exact, for the same reason as access_uri (no "_tftp" -> "FTP" mislabels).
+    match service_label_key(service_type).as_str() {
+        "smb" => Some("SMB"),
+        "sftp-ssh" | "ssh" => Some("SSH"),
+        "ftp" | "ftps" => Some("FTP"),
+        "afpovertcp" | "afp" => Some("AFP"),
+        "nfs" => Some("NFS"),
+        "webdav" | "dav" | "webdavs" | "davs" => Some("WebDAV"),
+        "tftp" => Some("TFTP"),
+        "scanner" | "uscan" | "uscans" => Some("scan"),
+        "printer" | "ipp" | "ipps" | "pdl-datastream" => Some("print"),
+        "http" | "https" => Some("web"),
+        _ => None,
+    }
+}
+
+/// Read a `key=value` entry out of an avahi `-p` TXT blob (entries are quoted and the
+/// values carry avahi's `\NNN` escaping).
+fn txt_value(txt: &str, key: &str) -> Option<String> {
+    let needle = format!("{key}=");
+    // Entries are quoted ("k=v" "k=v"), so only match at an entry boundary - otherwise a
+    // "key=" appearing inside ANOTHER entry's value (or a key merely ending in ours, like
+    // "x-adminurl=") would be read as the value. The `i == 0` arm makes `i - 1` safe.
+    let start = txt
+        .match_indices(&needle)
+        .find(|(i, _)| *i == 0 || txt.as_bytes()[i - 1] == b'"')
+        .map(|(i, _)| i + needle.len())?;
+    let rest = &txt[start..];
+    let end = rest.find('"').unwrap_or(rest.len());
+    let value = unescape_avahi(rest[..end].trim());
+    (!value.is_empty()).then_some(value)
+}
+
 // ---------------------------------------------------------------------------
 // mDNS / DNS-SD via avahi-browse
 // ---------------------------------------------------------------------------
@@ -273,8 +377,17 @@ fn mdns_avahi() -> Vec<Device> {
         }
     };
 
-    // host -> (name, ipv4, best-kind)
-    let mut hosts: BTreeMap<String, (String, String, DeviceKind)> = BTreeMap::new();
+    // One accumulator per host - a host's many service records fold into a single device.
+    struct Acc {
+        name: String,
+        addr: String,
+        host: String,
+        kind: DeviceKind,
+        open_uri: Option<(u8, String)>,
+        web_url: Option<String>,
+        services: Vec<&'static str>,
+    }
+    let mut hosts: BTreeMap<String, Acc> = BTreeMap::new();
     for line in String::from_utf8_lossy(&output.stdout).lines() {
         // Resolved records start with '=': =;iface;proto;name;type;domain;host;addr;port;txt...
         if !line.starts_with('=') {
@@ -284,7 +397,7 @@ fn mdns_avahi() -> Vec<Device> {
         if fields.len() < 9 {
             continue;
         }
-        // Only IPv4 - link-local IPv6 addresses are not usable for an smb:// link.
+        // Only IPv4 - link-local IPv6 addresses are not usable for an access URI.
         if fields[2] != "IPv4" {
             continue;
         }
@@ -292,6 +405,9 @@ fn mdns_avahi() -> Vec<Device> {
         let service_type = fields[4];
         let host = fields[6].trim_end_matches('.').to_string();
         let addr = fields[7].to_string();
+        let port = fields[8];
+        // A TXT value may itself contain ';', so rejoin everything past the port field.
+        let txt = fields.get(9..).map(|rest| rest.join(";")).unwrap_or_default();
         if host.is_empty() {
             continue;
         }
@@ -302,27 +418,101 @@ fn mdns_avahi() -> Vec<Device> {
             _ => continue,
         }
         let kind = kind_for_service(service_type);
-        let entry = hosts
-            .entry(host)
-            .or_insert_with(|| (name.clone(), addr.clone(), DeviceKind::Other));
-        if kind < entry.2 {
-            entry.2 = kind;
+        let entry = hosts.entry(host.clone()).or_insert_with(|| Acc {
+            name: name.clone(),
+            addr: addr.clone(),
+            host: host.clone(),
+            kind: DeviceKind::Other,
+            open_uri: None,
+            web_url: None,
+            services: Vec::new(),
+        });
+        if kind < entry.kind {
+            entry.kind = kind;
             // Prefer the name coming from the higher-priority service.
             if !name.is_empty() {
-                entry.0 = name.clone();
+                entry.name = name.clone();
             }
         }
-        if entry.0.is_empty() {
-            entry.0 = name;
+        if entry.name.is_empty() {
+            entry.name = name;
         }
-        if entry.1.is_empty() {
-            entry.1 = addr;
+        if entry.addr.is_empty() {
+            entry.addr = addr;
+        }
+        // Browse with the scheme the host actually advertises; best rank wins.
+        if let Some((rank, uri)) = access_uri(service_type, &entry.addr) {
+            let better = match &entry.open_uri {
+                Some((best, _)) => rank < *best,
+                None => true,
+            };
+            if better {
+                entry.open_uri = Some((rank, uri));
+            }
+        }
+        // Web UI: an explicit adminurl (printers publish one) beats a plain _http record.
+        // The TXT record comes from an UNTRUSTED LAN device and this URL ends up as the
+        // item's location, so only http(s) is accepted - an "adminurl=smb://attacker/share"
+        // would otherwise become a mount target with a credential prompt wearing the
+        // printer's name. A rejected adminurl falls through to the synthesized URL below.
+        let admin_url = txt_value(&txt, "adminurl").filter(|url| {
+            let lower = url.to_ascii_lowercase();
+            lower.starts_with("http://") || lower.starts_with("https://")
+        });
+        if let Some(admin) = admin_url {
+            if entry.web_url.is_none() {
+                entry.web_url = Some(admin);
+            }
+        } else if entry.web_url.is_none() {
+            let label = service_label_key(service_type);
+            if label == "http" || label == "https" {
+                // Elide only the port that is default FOR THIS scheme.
+                let (scheme, default_port) = if label == "https" {
+                    ("https", "443")
+                } else {
+                    ("http", "80")
+                };
+                entry.web_url = Some(if port.is_empty() || port == default_port {
+                    format!("{scheme}://{}/", entry.addr)
+                } else {
+                    format!("{scheme}://{}:{port}/", entry.addr)
+                });
+            }
+        }
+        if let Some(label) = service_label(service_type) {
+            if !entry.services.contains(&label) {
+                entry.services.push(label);
+            }
         }
     }
 
     hosts
         .into_values()
-        .map(|(name, addr, kind)| Device { name, addr, kind })
+        .map(|acc| {
+            let mut details = acc.addr.clone();
+            if !acc.host.is_empty() && !acc.host.eq_ignore_ascii_case(&acc.name) {
+                details.push_str(" - ");
+                details.push_str(&acc.host);
+            }
+            if !acc.services.is_empty() {
+                details.push_str(" - ");
+                details.push_str(&acc.services.join(", "));
+            }
+            // A host classified as a computer that advertises no browsable protocol (only
+            // _workstation._tcp, say) keeps the historical SMB default rather than becoming
+            // an icon that does nothing when opened.
+            let open_uri = acc.open_uri.map(|(_, uri)| uri).or_else(|| {
+                matches!(acc.kind, DeviceKind::Computer).then(|| format!("smb://{}/", acc.addr))
+            });
+            Device {
+                name: acc.name,
+                addr: acc.addr,
+                kind: acc.kind,
+                open_uri,
+                web_url: acc.web_url,
+                details,
+            }
+        })
         .collect()
 }
 
@@ -426,7 +616,18 @@ fn wsd_probe() -> Vec<Device> {
                     .and_then(wsd_friendly_name)
                     .filter(|n| !n.trim().is_empty())
                     .unwrap_or_else(|| ip.clone());
-                Device { name, addr: ip, kind }
+                // A WSD computer is a Windows/SMB host; printers and scanners are not browsable.
+                let open_uri =
+                    matches!(kind, DeviceKind::Computer).then(|| format!("smb://{ip}/"));
+                let details = format!("{ip} - WS-Discovery");
+                Device {
+                    name,
+                    addr: ip,
+                    kind,
+                    open_uri,
+                    web_url: None,
+                    details,
+                }
             })
         })
         .collect();

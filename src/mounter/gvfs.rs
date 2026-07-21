@@ -237,6 +237,7 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
             //TODO: scan directory size on gvfs mounts?
             dir_size: DirSize::NotDirectory,
             cut: false,
+            tooltip_opt: None,
             checksums: ChecksumState::default(),
         });
     }
@@ -261,14 +262,20 @@ fn discovered_device_items(sizes: IconSizes) -> Vec<tab::Item> {
             };
             let icon =
                 |size| widget::icon::from_name(icon_name).prefer_svg(true).size(size).handle();
-            // Only computers are navigable (open the SMB server-browse); other kinds are info.
-            let location_opt = matches!(device.kind, DeviceKind::Computer).then(|| {
-                Location::Network(format!("smb://{}/", device.addr), device.name.clone(), None)
-            });
+            // Browse the device with the scheme it actually advertises (smb/sftp/ftp/nfs/dav).
+            // A device with nothing browsable but a published web UI (a printer's admin page)
+            // gets that URL instead - the double-click handler opens http(s) in a browser.
+            let location_opt = device
+                .open_uri
+                .clone()
+                .or_else(|| device.web_url.clone())
+                .map(|uri| Location::Network(uri, device.name.clone(), None));
+            let tooltip_opt = (!device.details.is_empty()).then(|| device.details.clone());
             tab::Item {
                 name: device.name.clone(),
                 is_mount_point: false,
                 display_name: device.name,
+                tooltip_opt,
                 metadata: ItemMetadata::SimpleDir { entries: 0 },
                 hidden: false,
                 location_opt,

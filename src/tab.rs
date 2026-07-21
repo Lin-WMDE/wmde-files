@@ -770,6 +770,7 @@ pub fn item_from_gvfs_info(path: PathBuf, file_info: gio::FileInfo, sizes: IconS
         overlaps_drag_rect: false,
         dir_size,
         cut: false,
+        tooltip_opt: None,
         checksums: ChecksumState::default(),
     }
 }
@@ -902,6 +903,7 @@ pub fn item_from_entry(
         overlaps_drag_rect: false,
         dir_size,
         cut: false,
+        tooltip_opt: None,
         checksums: ChecksumState::default(),
     }
 }
@@ -961,6 +963,7 @@ pub fn item_from_trash_entry(
         overlaps_drag_rect: false,
         dir_size: DirSize::NotDirectory,
         cut: false,
+        tooltip_opt: None,
         checksums: ChecksumState::default(),
     }
 }
@@ -1415,6 +1418,7 @@ pub fn scan_desktop(
             overlaps_drag_rect: false,
             dir_size: DirSize::NotDirectory,
             cut: false,
+            tooltip_opt: None,
             checksums: ChecksumState::default(),
         });
     }
@@ -1743,6 +1747,8 @@ pub enum Command {
     // WMDE: mount an unmounted network share (smb://server/share) then open it - the flow used
     // when double-clicking a share in the server-browse listing (GNOME/Nautilus behaviour).
     NetworkDriveOpen(String, String),
+    // WMDE: open a URL in the browser (a discovered device's web UI, e.g. a printer admin page).
+    LaunchUrl(String),
     AddToSidebar(PathBuf),
     AutoScroll(Option<f32>),
     ChangeLocation(String, Location, Option<Vec<PathBuf>>),
@@ -2320,6 +2326,9 @@ pub struct Item {
     pub name: String,
     pub is_mount_point: bool,
     pub display_name: String,
+    /// WMDE: richer hover text than the plain name (network devices show address, host
+    /// and advertised services). Falls back to `name` when unset.
+    pub tooltip_opt: Option<String>,
     pub metadata: ItemMetadata,
     pub hidden: bool,
     pub location_opt: Option<Location>,
@@ -2896,8 +2905,15 @@ async fn calculate_checksums(path: &Path) -> Result<FileChecksums, String> {
 // (scheme://host/<non-empty>, e.g. smb://server/share), as opposed to a bare server
 // (smb://server, browsable) or network:///.
 fn is_unmounted_share_uri(uri: &str) -> bool {
-    uri.split_once("://")
-        .and_then(|(_, rest)| rest.split_once('/'))
+    let Some((scheme, rest)) = uri.split_once("://") else {
+        return false;
+    };
+    // A device's web UI is not a mountable share - it has the same scheme://host/path shape
+    // but must be handed to the browser (the cd funnel does that), never gvfs-mounted.
+    if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
+        return false;
+    }
+    rest.split_once('/')
         .is_some_and(|(_host, path)| !path.trim_matches('/').is_empty())
 }
 
@@ -3636,6 +3652,7 @@ impl Tab {
                             // WMDE: an unmounted SMB share (network uri with a share component and
                             // no FUSE path yet) is mounted on demand before opening, like GNOME
                             // Files. Bare servers and already-mounted locations just navigate.
+                            // (http(s) device URLs are intercepted by the cd funnel below.)
                             if let Location::Network(uri, name, None) = location
                                 && is_unmounted_share_uri(uri)
                             {
@@ -4442,6 +4459,12 @@ impl Tab {
                 }
             }
             Message::Reload => {
+                // WMDE: an explicit reload must re-probe the network rather than serve the
+                // cached device list (the freshness TTL would otherwise swallow it).
+                #[cfg(feature = "gvfs")]
+                if matches!(&self.location, Location::Network(uri, ..) if uri == "network:///") {
+                    crate::network_discovery::force_refresh_devices();
+                }
                 //TODO: support keeping selected locations without paths
                 let selected_paths = self
                     .selected_locations()
@@ -4928,6 +4951,20 @@ impl Tab {
                 )
                 .into(),
             ));
+        }
+
+        // WMDE: a discovered device that only publishes a web UI (a printer's admin page)
+        // opens in the browser instead of being navigated to. Done here, ahead of the single
+        // cd funnel, so double-click, Enter, single-click mode and the context menu all behave
+        // the same - the file manager cannot enumerate an http(s) URL.
+        if let Some(Location::Network(uri, ..)) = &cd
+            && {
+                let lower = uri.to_ascii_lowercase();
+                lower.starts_with("http://") || lower.starts_with("https://")
+            }
+        {
+            commands.push(Command::LaunchUrl(uri.clone()));
+            cd = None;
         }
 
         // Change directory if requested
@@ -5952,7 +5989,9 @@ impl Tab {
                                     true,
                                     matches!(self.mode, Mode::Desktop),
                                 )),
-                            widget::text::body(&item.name),
+                            widget::text::body(
+                                item.tooltip_opt.as_deref().unwrap_or(&item.name),
+                            ),
                             widget::tooltip::Position::Bottom,
                         )
                         .into(),
