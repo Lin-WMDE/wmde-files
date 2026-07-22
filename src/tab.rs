@@ -222,22 +222,17 @@ fn button_appearance(
 // and the border at ~34%. Desktop icons wash with neutral white, exactly like the Win10
 // desktop; in the file manager the accent is used (as Explorer does), because a white wash is
 // invisible on a light background.
-fn selection_colors(theme: &theme::Theme, desktop: bool) -> (Color, Color) {
-    if desktop {
-        (
-            Color {
-                a: 0.12,
-                ..Color::WHITE
-            },
-            Color {
-                a: 0.34,
-                ..Color::WHITE
-            },
-        )
+fn selection_colors(theme: &theme::Theme, _desktop: bool) -> (Color, Color) {
+    // The wash has to LIGHTEN a dark background and DARKEN a light one - keying it off the
+    // theme, not off desktop-vs-window. A dark accent wash over a dark background reads as a
+    // hole rather than a highlight, which is exactly what the first attempt looked like.
+    let cosmic = theme.cosmic();
+    let wash = if cosmic.is_dark {
+        Color::WHITE
     } else {
-        let accent = Color::from(theme.cosmic().accent_color());
-        (Color { a: 0.20, ..accent }, Color { a: 0.55, ..accent })
-    }
+        Color::BLACK
+    };
+    (Color { a: 0.12, ..wash }, Color { a: 0.34, ..wash })
 }
 
 /// WMDE: container style that paints the selection (and the drag/hover highlight) for a grid
