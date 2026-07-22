@@ -3,7 +3,7 @@
 # Builds our fork Lin-WMDE/wmde-files (branch wmde; master mirrors pop-os upstream).
 pkgname=wmde-files
 pkgver=1.2.0
-pkgrel=3
+pkgrel=4
 pkgdesc="WMDE Files - file manager for the WMDE desktop (fork of cosmic-files)"
 arch=('x86_64')
 url="https://wmde.fun"
