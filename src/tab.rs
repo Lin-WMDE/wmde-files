@@ -2422,10 +2422,13 @@ impl Item {
     fn grid_display_name<'a>(
         name: impl Into<Cow<'a, str>> + 'a,
     ) -> widget::Text<'a, cosmic::Theme, cosmic::Renderer> {
+        // WMDE: two lines, like an Explorer tile - the label area is a fixed two lines high so
+        // every item (and therefore every selection rectangle) is the same size; longer names
+        // ellipsize, exactly as Windows does.
         widget::text::body(name)
             .wrapping(text::Wrapping::WordOrGlyph)
             .ellipsize(text::Ellipsize::Middle(text::EllipsizeHeightLimit::Lines(
-                3,
+                2,
             )))
     }
 
@@ -5934,7 +5937,9 @@ impl Tab {
             grid_spacing = desktop_config.grid_spacing_for(space_xxs);
         }
 
-        let text_height = 3 * 20; // 3 lines of text
+        // WMDE: a fixed two-line label area (as in an Explorer tile), so every item - and so
+        // every selection rectangle - has the same height regardless of name length.
+        let text_height = 2 * 20; // 2 lines of text
         let item_width = (3 * space_xxs + icon_sizes.grid() + 3 * space_xxs) as usize;
         let item_height =
             (space_xxxs + icon_sizes.grid() + space_xxxs + text_height + space_xxxs) as usize;
@@ -6041,6 +6046,9 @@ impl Tab {
                             widget::button::custom(Item::grid_display_name(&item.display_name))
                                 .id(item.button_id.clone())
                                 .padding([0, space_xxxs])
+                                // Fixed two-line label area: a one-line name reserves the same
+                                // height, so all selection rectangles match.
+                                .height(Length::Fixed(f32::from(text_height)))
                                 .class(button_style(
                                     false,
                                     false,
@@ -6083,11 +6091,14 @@ impl Tab {
                     // inner container hugs the content while the outer one keeps the cell
                     // size the grid layout depends on.
                     let column = widget::container(
-                        widget::container(column).class(selection_container(
-                            item.selected,
-                            item.highlighted,
-                            matches!(self.mode, Mode::Desktop),
-                        )),
+                        widget::container(column)
+                            // A little breathing room under the label, inside the border.
+                            .padding([0, 0, space_xxxs, 0])
+                            .class(selection_container(
+                                item.selected,
+                                item.highlighted,
+                                matches!(self.mode, Mode::Desktop),
+                            )),
                     )
                     .width(Length::Fixed(item_width as f32))
                     .height(Length::Fixed(item_height as f32));
