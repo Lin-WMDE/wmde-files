@@ -16,6 +16,7 @@ use cosmic::iced::{
 };
 use cosmic::widget::menu::action::MenuAction;
 use cosmic::widget::menu::key_bind::KeyBind;
+use cosmic::iced::advanced::widget::text::Style as TextStyle;
 use cosmic::widget::{self, DndDestination, DndSource, Id, RcElementWrapper, Widget, space};
 use cosmic::{Apply, Element, cosmic_theme, font, theme};
 use i18n_embed::LanguageLoader;
@@ -191,7 +192,9 @@ fn button_appearance(
             appearance.background = Some(Color::from(cosmic.bg_component_color()).into());
         }
     } else if desktop {
-        appearance.background = Some(Color::from(cosmic.bg_color()).into());
+        // WMDE: no plate behind a desktop label. Windows draws the name straight over the
+        // wallpaper with a drop shadow instead; grid_view stacks that shadow (iced has no
+        // text-shadow support).
         appearance.icon_color = Some(Color::from(cosmic.on_bg_color()));
         if cut {
             appearance.text_color = Some(Color::from(
@@ -5912,6 +5915,35 @@ impl Tab {
         .into()
     }
 
+    /// WMDE: the label under a grid icon. On the desktop Windows draws the name straight over
+    /// the wallpaper with a drop shadow and no plate behind it; iced has no text shadow, so a
+    /// dark copy is stacked one pixel down-right. Both copies are padded to the same inner
+    /// width so they wrap identically and the shadow stays aligned.
+    fn grid_label(display_name: &str, desktop: bool) -> Element<'_, Message> {
+        if !desktop {
+            return Item::grid_display_name(display_name).into();
+        }
+        fn shadow_style(_theme: &cosmic::Theme) -> TextStyle {
+            TextStyle {
+                color: Some(Color {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 0.75,
+                }),
+                ..Default::default()
+            }
+        }
+        stack![
+            widget::container(
+                Item::grid_display_name(display_name).class(theme::Text::Custom(shadow_style))
+            )
+            .padding([1, 0, 0, 1]),
+            widget::container(Item::grid_display_name(display_name)).padding([0, 1, 1, 0]),
+        ]
+        .into()
+    }
+
     pub fn grid_view(
         &self,
     ) -> (
@@ -6043,7 +6075,10 @@ impl Tab {
                         .class(button_style(false, false, item.cut, false, false))
                         .into(),
                         widget::tooltip(
-                            widget::button::custom(Item::grid_display_name(&item.display_name))
+                            widget::button::custom(Self::grid_label(
+                                &item.display_name,
+                                matches!(self.mode, Mode::Desktop),
+                            ))
                                 .id(item.button_id.clone())
                                 .padding([0, space_xxxs])
                                 // Fixed two-line label area: a one-line name reserves the same
