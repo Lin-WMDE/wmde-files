@@ -6056,9 +6056,11 @@ impl Tab {
                         .into(),
                     ];
 
+                    // Height is deliberately left to shrink to the content: the selection
+                    // rectangle drawn around this column must hug the icon and label, not the
+                    // full cell (the outer container below restores the cell's fixed size).
                     let mut column = widget::column::with_capacity(buttons.len())
                         .align_x(Alignment::Center)
-                        .height(Length::Fixed(item_height as f32))
                         .width(Length::Fixed(item_width as f32));
                     for button in buttons {
                         if self.context_menu.is_some() {
@@ -6075,16 +6077,20 @@ impl Tab {
                         }
                     }
 
-                    // WMDE: one selection rectangle around the whole cell (icon + label), the
-                    // way Windows draws it - see selection_container().
-                    let column = widget::container(column)
-                        .class(selection_container(
+                    // WMDE: one selection rectangle around the icon and its label - and only
+                    // around them. The cell's height reserves room for a 3-line name, so
+                    // painting the whole cell left a tall empty box under short names; the
+                    // inner container hugs the content while the outer one keeps the cell
+                    // size the grid layout depends on.
+                    let column = widget::container(
+                        widget::container(column).class(selection_container(
                             item.selected,
                             item.highlighted,
                             matches!(self.mode, Mode::Desktop),
-                        ))
-                        .width(Length::Fixed(item_width as f32))
-                        .height(Length::Fixed(item_height as f32));
+                        )),
+                    )
+                    .width(Length::Fixed(item_width as f32))
+                    .height(Length::Fixed(item_height as f32));
 
                     let column: Element<Message> =
                         if item.metadata.is_dir() && item.location_opt.is_some() {
@@ -6221,13 +6227,19 @@ impl Tab {
                         let column =
                             widget::column::with_children(buttons.into_iter().map(Element::from))
                                 .align_x(Alignment::Center)
-                                .height(Length::Fixed(item_height as f32))
                                 .width(Length::Fixed(item_width as f32));
 
-                        let column = widget::container(column)
-                            .class(selection_container(item.selected, item.highlighted, false))
-                            .width(Length::Fixed(item_width as f32))
-                            .height(Length::Fixed(item_height as f32));
+                        // Same as grid_view: the rectangle hugs the content, the outer
+                        // container keeps the cell size.
+                        let column = widget::container(
+                            widget::container(column).class(selection_container(
+                                item.selected,
+                                item.highlighted,
+                                false,
+                            )),
+                        )
+                        .width(Length::Fixed(item_width as f32))
+                        .height(Length::Fixed(item_height as f32));
 
                         dnd_grid = dnd_grid.push(column);
                         dnd_item_i += 1;
