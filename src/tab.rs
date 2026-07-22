@@ -5934,6 +5934,15 @@ impl Tab {
                 ..Default::default()
             }
         }
+        // The foreground copy must set its colour EXPLICITLY: wrapping the text in a
+        // container breaks the inheritance of the button style's text_color, so the label
+        // silently fell back to the default (dark) colour and vanished against the wallpaper.
+        fn label_style(theme: &cosmic::Theme) -> TextStyle {
+            TextStyle {
+                color: Some(Color::from(theme.cosmic().on_bg_color())),
+                ..Default::default()
+            }
+        }
         // Measured off the Win10 reference: the halo around the glyphs is near black and sits
         // on every side, not just down-right. Without blur, stack a dark copy at each diagonal
         // - overlapping them builds the halo up. Every copy spends the same 2px padding
@@ -5950,7 +5959,10 @@ impl Tab {
             shadow([0, 2, 2, 0]),
             shadow([2, 2, 0, 0]),
             shadow([0, 0, 2, 2]),
-            widget::container(Item::grid_display_name(display_name)).padding([1, 1, 1, 1]),
+            widget::container(
+                Item::grid_display_name(display_name).class(theme::Text::Custom(label_style))
+            )
+            .padding([1, 1, 1, 1]),
         ]
         .into()
     }
