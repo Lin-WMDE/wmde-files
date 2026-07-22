@@ -5929,17 +5929,28 @@ impl Tab {
                     r: 0.0,
                     g: 0.0,
                     b: 0.0,
-                    a: 0.75,
+                    a: 0.6,
                 }),
                 ..Default::default()
             }
         }
-        stack![
+        // Measured off the Win10 reference: the halo around the glyphs is near black and sits
+        // on every side, not just down-right. Without blur, stack a dark copy at each diagonal
+        // - overlapping them builds the halo up. Every copy spends the same 2px padding
+        // budget, just split differently, so all copies wrap identically and stay aligned:
+        // padding is [top, right, bottom, left], so e.g. [2,0,0,2] puts the text down-right.
+        let shadow = |padding: [u16; 4]| {
             widget::container(
-                Item::grid_display_name(display_name).class(theme::Text::Custom(shadow_style))
+                Item::grid_display_name(display_name).class(theme::Text::Custom(shadow_style)),
             )
-            .padding([1, 0, 0, 1]),
-            widget::container(Item::grid_display_name(display_name)).padding([0, 1, 1, 0]),
+            .padding(padding)
+        };
+        stack![
+            shadow([2, 0, 0, 2]),
+            shadow([0, 2, 2, 0]),
+            shadow([2, 2, 0, 0]),
+            shadow([0, 0, 2, 2]),
+            widget::container(Item::grid_display_name(display_name)).padding([1, 1, 1, 1]),
         ]
         .into()
     }
