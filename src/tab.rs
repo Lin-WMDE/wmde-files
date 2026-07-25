@@ -326,22 +326,24 @@ fn button_style(
     }
 }
 
-// WMDE: text input styled like the address field (bg #1a1a1a, 1px #494949 border, radius 2)
+// WMDE: text input styled like the address field (theme surface, 1px theme divider, radius 2)
 pub fn wmde_input_style() -> theme::TextInput {
     use cosmic::widget::text_input::{Appearance, StyleSheet};
-    fn like_address(mut a: Appearance) -> Appearance {
+    fn like_address(theme: &cosmic::Theme, mut a: Appearance) -> Appearance {
         a.border_radius = [2.0_f32; 4].into();
         a.border_width = 1.0;
-        a.border_color = crate::app::WMDE_FIELD_BORDER;
-        a.background = crate::app::WMDE_SURFACE.into();
+        a.border_color = crate::app::wmde_field_border(theme);
+        a.background = crate::app::wmde_surface(theme).into();
         a
     }
     theme::TextInput::Custom {
-        active: Box::new(|t| like_address(StyleSheet::active(t, &theme::TextInput::Default))),
-        error: Box::new(|t| like_address(StyleSheet::error(t, &theme::TextInput::Default))),
-        hovered: Box::new(|t| like_address(StyleSheet::hovered(t, &theme::TextInput::Default))),
-        focused: Box::new(|t| like_address(StyleSheet::focused(t, &theme::TextInput::Default))),
-        disabled: Box::new(|t| like_address(StyleSheet::disabled(t, &theme::TextInput::Default))),
+        active: Box::new(|t| like_address(t, StyleSheet::active(t, &theme::TextInput::Default))),
+        error: Box::new(|t| like_address(t, StyleSheet::error(t, &theme::TextInput::Default))),
+        hovered: Box::new(|t| like_address(t, StyleSheet::hovered(t, &theme::TextInput::Default))),
+        focused: Box::new(|t| like_address(t, StyleSheet::focused(t, &theme::TextInput::Default))),
+        disabled: Box::new(|t| {
+            like_address(t, StyleSheet::disabled(t, &theme::TextInput::Default))
+        }),
     }
 }
 
@@ -5837,10 +5839,10 @@ impl Tab {
                 .on_press(Message::Reload),
         );
         let crumbs = widget::container(field_row)
-        .class(theme::Container::custom(|_theme| widget::container::Style {
-            background: Some(crate::app::WMDE_SURFACE.into()),
+        .class(theme::Container::custom(|theme| widget::container::Style {
+            background: Some(crate::app::wmde_surface(theme).into()),
             border: Border {
-                color: crate::app::WMDE_FIELD_BORDER,
+                color: crate::app::wmde_field_border(theme),
                 width: 1.0,
                 radius: [2.0; 4].into(),
             },

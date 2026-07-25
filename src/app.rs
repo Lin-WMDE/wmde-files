@@ -6875,10 +6875,10 @@ impl Application for App {
             .width(Length::Fill)
             .height(Length::Fill),
         )
-        // WMDE: exact Win11 content surface (#1a1a1a); the darker title bar (theme
-        // background.base = #000D20) makes the active tab read as connected to the menu strip.
-        .class(theme::Container::custom(|_theme| widget::container::Style {
-            background: Some(cosmic::iced::Background::Color(WMDE_SURFACE)),
+        // WMDE: the window body uses the theme's background surface - the same one libcosmic
+        // paints the title bar with, so body and title bar read as one Explorer window.
+        .class(theme::Container::custom(|theme| widget::container::Style {
+            background: Some(cosmic::iced::Background::Color(wmde_surface(theme))),
             ..Default::default()
         }))
         .width(Length::Fill)
@@ -7731,32 +7731,25 @@ fn wmde_nav_selected_appearance(theme: &theme::Theme) -> widget::button::Style {
     appearance
 }
 
-// WMDE: exact Win11-dark Explorer colors, sampled from the reference screenshot.
-// Menu bar + active tab = #242D3E; content + sidebar = #1a1a1a; input/field border = #494949.
-// The title bar is colored via the theme's background.base (= #000D20), not from here.
-const WMDE_MENUBAR: cosmic::iced::Color = cosmic::iced::Color {
-    r: 0.141_176_47,
-    g: 0.176_470_59,
-    b: 0.243_137_26,
-    a: 1.0,
-};
-pub(crate) const WMDE_SURFACE: cosmic::iced::Color = cosmic::iced::Color {
-    r: 0.101_960_79,
-    g: 0.101_960_79,
-    b: 0.101_960_79,
-    a: 1.0,
-};
-pub(crate) const WMDE_FIELD_BORDER: cosmic::iced::Color = cosmic::iced::Color {
-    r: 0.286_274_5,
-    g: 0.286_274_5,
-    b: 0.286_274_5,
-    a: 1.0,
-};
+// WMDE: Explorer chrome colors, read from the active palette rather than hardcoded, so the
+// light theme renders correctly too. The menu row and the active tab sit one container layer
+// above the body (primary), which is what keeps the strip distinct in either theme; the WMDE
+// palette carries the Win11 blue on that layer.
+fn wmde_menubar(theme: &theme::Theme) -> cosmic::iced::Color {
+    cosmic::iced::Color::from(theme.cosmic().primary(false).base)
+}
+pub(crate) fn wmde_surface(theme: &theme::Theme) -> cosmic::iced::Color {
+    cosmic::iced::Color::from(theme.cosmic().background(false).base)
+}
+pub(crate) fn wmde_field_border(theme: &theme::Theme) -> cosmic::iced::Color {
+    cosmic::iced::Color::from(theme.cosmic().background(false).divider)
+}
 
-// WMDE: container background helper for the menu + address bar strip (#191F2D)
+// WMDE: container background helper for the menu row. The address row below it is a bare row
+// and renders on the body surface, not on this one.
 fn wmde_menubar_container() -> theme::Container<'static> {
-    theme::Container::custom(|_theme| widget::container::Style {
-        background: Some(cosmic::iced::Background::Color(WMDE_MENUBAR)),
+    theme::Container::custom(|theme| widget::container::Style {
+        background: Some(cosmic::iced::Background::Color(wmde_menubar(theme))),
         ..Default::default()
     })
 }
@@ -7769,8 +7762,8 @@ fn wmde_tab_style() -> theme::SegmentedButton {
         let cosmic = theme.cosmic();
         let rad = cosmic.corner_radii.radius_s;
         let top_round = cosmic::iced::border::Radius::from([rad[0], rad[1], 0.0, 0.0]);
-        // active tab uses the menu/address-bar color so it connects to the strip below it
-        let body = WMDE_MENUBAR;
+        // active tab uses the menu-row color so it connects to the strip below it
+        let body = cosmic::iced::Color::from(cosmic.primary(false).base);
         let on = cosmic::iced::Color::from(cosmic.background(false).on);
         let on_dim = cosmic::iced::Color::from(cosmic.background(false).component.on);
         let item = |radius| ItemAppearance {
