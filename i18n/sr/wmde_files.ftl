@@ -302,7 +302,7 @@ operations-running =
         [one] радња покренута
        *[other] радње покренуте
     } ({ $percent }%)...
-comment = Управник датотека за Космик радну површину
+comment = Управник датотека за WMDE радну површину
 keywords = Folder;Manager;Фасцикла;Управник;fascikla;upravnik;
 copy-to-title = Изабери одредиште умножавања
 copy-to-button-label = Умножи
