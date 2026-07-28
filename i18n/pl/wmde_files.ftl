@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = Menedżer plików pulpitu COSMIC
+comment = Menedżer plików pulpitu WMDE
 keywords = Katalogi;Pliki;Menedżer;
 empty-folder = Pusty katalog
 empty-folder-hidden = Pusty katalog (z ukrytymi plikami)

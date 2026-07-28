@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = File manager di COSMIC
+comment = File manager di WMDE
 keywords = File;Archivi;Cartelle;Explorer;
 empty-folder = Cartella vuota
 empty-folder-hidden = Cartella vuota (con elementi nascosti)

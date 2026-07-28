@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = Fájlkezelő a COSMIC asztali környezethez
+comment = Fájlkezelő a WMDE asztali környezethez
 keywords = mappa;fájl;kezelő;
 empty-folder = Üres mappa
 empty-folder-hidden = Üres mappa (rejtett elemeket tartalmaz)

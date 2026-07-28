@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = Správce souborů pro prostředí COSMIC
+comment = Správce souborů pro prostředí WMDE
 keywords = Složka;Složky;Správce;Manažer;Prohlížeč;
 empty-folder = Složka je prázdná
 empty-folder-hidden = Složka je prázdná (obsahuje skryté položky)

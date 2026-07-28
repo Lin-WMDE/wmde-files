@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = مدير ملفات لسطح مكتب COSMIC
+comment = مدير ملفات لسطح مكتب WMDE
 keywords = مجلد;ملف;مدير;
 empty-folder = مجلد فارغ
 empty-folder-hidden = مجلد فارغ (يحتوي على عناصر مخفية)

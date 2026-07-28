@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = Filhanterare för skrivbordsmiljön COSMIC
+comment = Filhanterare för skrivbordsmiljön WMDE
 keywords = Folder;Katalog;Mapp;Manager;
 empty-folder = Mappen är tom
 empty-folder-hidden = Mappen är tom (har dolda objekt)

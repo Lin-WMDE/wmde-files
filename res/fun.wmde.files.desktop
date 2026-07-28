@@ -1,11 +1,11 @@
 [Desktop Entry]
 Name=WMDE Files
-Comment=File manager for the COSMIC desktop
+Comment=File manager for the WMDE desktop
 Exec=wmde-files %U
 Terminal=false
 Type=Application
 StartupNotify=true
 Icon=fun.wmde.files
-Categories=COSMIC;Utility;FileManager;
+Categories=WMDE;Utility;FileManager;
 Keywords=Folder;Manager;
 MimeType=inode/directory;

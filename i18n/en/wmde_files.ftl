@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = File manager for the COSMIC desktop
+comment = File manager for the WMDE desktop
 keywords = Folder;Manager;
 empty-folder = Empty folder
 empty-folder-hidden = Empty folder (has hidden items)

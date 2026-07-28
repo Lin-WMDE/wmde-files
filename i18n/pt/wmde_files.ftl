@@ -1,5 +1,5 @@
 wmde-files = WMDE Files
-comment = Gerenciador de arquivos do COSMIC
+comment = Gerenciador de arquivos do WMDE
 keywords = Pasta;Gestor;
 empty-folder = Pasta vazia
 empty-folder-hidden = Pasta vazia (tem ficheiros ocultos)

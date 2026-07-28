@@ -349,7 +349,7 @@ favorite-path-error-description =
     「{ $path }」可能不存在，或您可能沒有權限開啟它。
 
     您是否要將它從側邊欄移除？
-comment = COSMIC 桌面檔案管理器
+comment = WMDE 桌面檔案管理器
 pasted-image = 已經貼上的圖片
 pasted-text = 已經貼上的文字
 pasted-video = 已經貼上的影片

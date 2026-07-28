@@ -1151,7 +1151,7 @@ impl App {
     }
 }
 
-/// Implement [`Application`] to integrate with COSMIC.
+/// Implement [`Application`] to integrate with WMDE.
 impl Application for App {
     /// Default async executor to use with the app.
     type Executor = executor::Default;
