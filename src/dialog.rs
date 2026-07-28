@@ -931,8 +931,6 @@ impl App {
             )
         };
 
-        // --- Places ---
-        col = col.push(sidebar::header(fl!("places"), true));
         for favorite in &self.flags.config.favorites {
             if let Some(path) = favorite.path_opt() {
                 let name = if matches!(favorite, Favorite::Home) {
@@ -1014,12 +1012,12 @@ impl App {
             )
         };
 
-        col = col.push(sidebar::header(fl!("devices"), false));
+        col = col.push(sidebar::header(fl!("devices")));
         for (ic, name, target, path, ejectable) in drives {
             col = col.push(drive_row(ic, name, target, path, ejectable));
         }
         if !shares.is_empty() {
-            col = col.push(sidebar::header(fl!("networks"), false));
+            col = col.push(sidebar::header(fl!("networks")));
             for (ic, name, target, path, ejectable) in shares {
                 col = col.push(drive_row(ic, name, target, path, ejectable));
             }

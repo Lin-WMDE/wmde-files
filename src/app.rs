@@ -1907,9 +1907,6 @@ impl App {
             .spacing(space_xxxs)
             .padding([space_xxxs, space_xxs]);
 
-        // --- WMDE: Places ---
-        col = col.push(sidebar::header(fl!("places"), true));
-
         for favorite in self.config.favorites.iter() {
             if let Some(path) = favorite.path_opt() {
                 let name = if matches!(favorite, Favorite::Home) {
@@ -1964,7 +1961,7 @@ impl App {
         ));
 
         // --- WMDE: devices with disk-usage bars ---
-        col = col.push(sidebar::header(fl!("devices"), false));
+        col = col.push(sidebar::header(fl!("devices")));
 
         // (name, icon, nav_location, fuse_path, ejectable), split by locality: local disks land
         // under Devices, gvfs mounts of remote shares under Network - as in the Nemo layout.
@@ -2037,7 +2034,7 @@ impl App {
             let net_selected = self.tab_model.active_data::<Tab>().is_some_and(|t| {
                 matches!(&t.location, Location::Network(uri, ..) if uri == "network:///")
             });
-            col = col.push(sidebar::header(fl!("networks"), false));
+            col = col.push(sidebar::header(fl!("networks")));
             col = col.push(wmde_sidebar_entry(
                 sidebar::named("network-workgroup"),
                 fl!("browse-network"),

@@ -30,7 +30,10 @@ pub fn named(name: &'static str) -> widget::icon::Handle {
 
 /// A group header - bold, no icon, and indented less than the entries below it, so it reads
 /// as the separator between groups (there are no divider lines in this sidebar).
-pub fn header<M: 'static>(name: String, first: bool) -> Element<'static, M> {
+///
+/// The first group, the folders, deliberately has no header at all: it opens the sidebar, so
+/// there is nothing above it to separate it from.
+pub fn header<M: 'static>(name: String) -> Element<'static, M> {
     let cosmic_theme::Spacing {
         space_xxxs,
         space_xxs,
@@ -38,14 +41,8 @@ pub fn header<M: 'static>(name: String, first: bool) -> Element<'static, M> {
         ..
     } = theme::spacing();
     widget::container(widget::text::heading(name))
-        // The gap that separates the groups rides above the header; the first one sits flush
-        // with the top of the sidebar.
-        .padding([
-            if first { 0 } else { space_xs },
-            space_xxs,
-            space_xxxs,
-            space_xxs,
-        ])
+        // The gap that separates the groups rides above the header.
+        .padding([space_xs, space_xxs, space_xxxs, space_xxs])
         .into()
 }
 
