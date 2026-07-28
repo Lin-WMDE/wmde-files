@@ -59,6 +59,9 @@ impl AppTheme {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Favorite {
     Home,
+    // WMDE: the sidebar leads with Home and Desktop, like Explorer and the Mint/Nemo layout
+    // this sidebar follows.
+    Desktop,
     Documents,
     Downloads,
     Music,
@@ -77,6 +80,7 @@ impl Favorite {
         // Ensure that special folders are handled properly
         [
             Self::Home,
+            Self::Desktop,
             Self::Documents,
             Self::Downloads,
             Self::Music,
@@ -91,6 +95,7 @@ impl Favorite {
     pub fn path_opt(&self) -> Option<PathBuf> {
         match self {
             Self::Home => dirs::home_dir(),
+            Self::Desktop => dirs::desktop_dir(),
             Self::Documents => dirs::document_dir(),
             Self::Downloads => dirs::download_dir(),
             Self::Music => dirs::audio_dir(),
@@ -225,6 +230,7 @@ impl Default for Config {
             thumb_cfg: ThumbCfg::default(),
             favorites: vec![
                 Favorite::Home,
+                Favorite::Desktop,
                 Favorite::Documents,
                 Favorite::Downloads,
                 Favorite::Music,

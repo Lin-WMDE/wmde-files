@@ -748,6 +748,10 @@ pub struct App {
     // the real path - correct for /home and other filesystems the mounter never reports.
     // Refreshed on location change and after operations, not per render.
     wmde_loc_disk: Option<(PathBuf, u64, u64)>,
+    // WMDE: is the trash empty? Only so the sidebar can show the full/empty icon: Trash::icon
+    // reads the trash directories, which must not happen on every render (same reason
+    // tab::wmde_location_icon uses a static handle). Refreshed on RescanTrash.
+    wmde_trash_empty: bool,
     must_save_sort_names: bool,
     network_drive_connecting: Option<(MounterKey, String)>,
     network_drive_input: String,
@@ -1888,7 +1892,7 @@ impl App {
 
     fn wmde_sidebar(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
-            space_xxxs, space_xxs, space_xs, space_s, ..
+            space_xxxs, space_xxs, ..
         } = theme::spacing();
         let current_path = self
             .tab_model
@@ -1897,9 +1901,13 @@ impl App {
                 Location::Path(p) => Some(p.clone()),
                 _ => None,
             });
-        let mut col = widget::column::with_capacity(self.config.favorites.len() + 2)
+        let active_location = self.tab_model.active_data::<Tab>().map(|t| &t.location);
+        let mut col = widget::column::with_capacity(self.config.favorites.len() + 8)
             .spacing(space_xxxs)
             .padding([space_xxxs, space_xxs]);
+
+        // --- WMDE: Places ---
+        col = col.push(wmde_sidebar_header(fl!("places"), true));
 
         for favorite in self.config.favorites.iter() {
             if let Some(path) = favorite.path_opt() {
@@ -1913,9 +1921,9 @@ impl App {
                     fl!("filesystem")
                 };
                 let ic = if path.is_dir() {
-                    tab::folder_icon_symbolic(&path, 16)
+                    tab::folder_icon(&path, 16)
                 } else {
-                    icon::from_name("text-x-generic-symbolic").size(16).handle()
+                    icon::from_name("text-x-generic").size(16).handle()
                 };
                 let selected = current_path.as_deref() == Some(path.as_path());
                 let location = match favorite {
@@ -1934,40 +1942,81 @@ impl App {
             }
         }
 
-        // --- WMDE: devices with disk-usage bars ---
-        col = col.push(
-            widget::container(widget::divider::horizontal::default())
-                .padding([space_xs, space_s]),
-        );
+        if self.config.show_recents {
+            col = col.push(wmde_sidebar_entry(
+                icon::from_name("document-open-recent").size(16).handle(),
+                fl!("recents"),
+                Location::Recents,
+                active_location == Some(&Location::Recents),
+            ));
+        }
 
-        // (name, nav_location, fuse_path, ejectable)
-        let mut drives: Vec<(String, Location, std::path::PathBuf, bool)> = Vec::new();
+        col = col.push(wmde_sidebar_entry(
+            icon::from_name(if self.wmde_trash_empty {
+                "user-trash"
+            } else {
+                "user-trash-full"
+            })
+            .size(16)
+            .handle(),
+            fl!("trash"),
+            Location::Trash,
+            active_location == Some(&Location::Trash),
+        ));
+
+        // --- WMDE: devices with disk-usage bars ---
+        col = col.push(wmde_sidebar_header(fl!("devices"), false));
+
+        // (name, icon, nav_location, fuse_path, ejectable), split by locality: local disks land
+        // under Devices, gvfs mounts of remote shares under Network - as in the Nemo layout.
+        let mut drives: Vec<(String, widget::icon::Handle, Location, PathBuf, bool)> = Vec::new();
+        let mut shares = Vec::new();
         drives.push((
             fl!("filesystem"),
-            Location::Path(std::path::PathBuf::from("/")),
-            std::path::PathBuf::from("/"),
+            icon::from_name("drive-harddisk").size(16).handle(),
+            Location::Path(PathBuf::from("/")),
+            PathBuf::from("/"),
             false,
         ));
         for (_key, items) in self.mounter_items.iter() {
             for item in items.iter() {
                 if item.is_mounted() {
                     if let Some(path) = item.path() {
+                        let remote = item.is_remote();
                         // WMDE: browse network mounts as their smb:// URI (GNOME/Nautilus
                         // model) so the address stays smb://... and never shows the
                         // /run/user/N/gvfs FUSE path. The fuse path is still carried for file
                         // operations, the disk-usage bar and eject.
-                        let location = if item.is_remote() {
+                        let location = if remote {
                             Location::Network(item.uri(), item.name(), Some(path.clone()))
                         } else {
                             Location::Path(path.clone())
                         };
-                        drives.push((item.name(), location, path, true));
+                        let ic = item.icon(false).unwrap_or_else(|| {
+                            icon::from_name(if remote {
+                                "folder-remote"
+                            } else {
+                                "drive-harddisk"
+                            })
+                            .size(16)
+                            .handle()
+                        });
+                        let entry = (item.name(), ic, location, path, true);
+                        if remote {
+                            shares.push(entry);
+                        } else {
+                            drives.push(entry);
+                        }
                     }
                 }
             }
         }
-        let active_location = self.tab_model.active_data::<Tab>().map(|t| &t.location);
-        for (name, location, path, ejectable) in drives {
+
+        let drive_row = |name: String,
+                         ic: widget::icon::Handle,
+                         location: Location,
+                         path: PathBuf,
+                         ejectable: bool| {
             let fraction = self.wmde_disk_usage.get(&path).map(|(total, avail)| {
                 if *total > 0 {
                     total.saturating_sub(*avail) as f32 / *total as f32
@@ -1976,24 +2025,31 @@ impl App {
                 }
             });
             let selected = active_location == Some(&location);
-            col = col.push(wmde_drive_entry(name, location, path, selected, fraction, ejectable));
+            wmde_drive_entry(name, ic, location, path, selected, fraction, ejectable)
+        };
+
+        for (name, ic, location, path, ejectable) in drives {
+            col = col.push(drive_row(name, ic, location, path, ejectable));
         }
 
-        // WMDE: permanent "Network" entry (like Windows Explorer), placed under Filesystem.
-        // Opens network:/// to browse mounted shares and reach the "Add network drive" button.
-        // Shown only when a mounter backend (gvfs) is present, mirroring the upstream nav item.
+        // WMDE: permanent "Network" group (like Windows Explorer). "Browse network" opens
+        // network:/// to reach mounted shares and the "Add network drive" button; the mounted
+        // shares themselves follow. Shown only when a mounter backend (gvfs) is present,
+        // mirroring the upstream nav item.
         if !MOUNTERS.is_empty() {
             let net_selected = self.tab_model.active_data::<Tab>().is_some_and(|t| {
                 matches!(&t.location, Location::Network(uri, ..) if uri == "network:///")
             });
+            col = col.push(wmde_sidebar_header(fl!("networks"), false));
             col = col.push(wmde_sidebar_entry(
-                icon::from_name("network-workgroup-symbolic")
-                    .size(16)
-                    .handle(),
-                fl!("networks"),
+                icon::from_name("network-workgroup").size(16).handle(),
+                fl!("browse-network"),
                 Location::Network("network:///".to_string(), fl!("networks"), None),
                 net_selected,
             ));
+            for (name, ic, location, path, ejectable) in shares {
+                col = col.push(drive_row(name, ic, location, path, ejectable));
+            }
         }
 
         widget::scrollable(col)
@@ -2681,6 +2737,7 @@ impl Application for App {
             mounter_items: FxHashMap::default(),
             wmde_disk_usage: HashMap::default(),
             wmde_loc_disk: None,
+            wmde_trash_empty: Trash::is_empty(),
             must_save_sort_names: false,
             network_drive_connecting: None,
             network_drive_input: String::new(),
@@ -4453,6 +4510,7 @@ impl Application for App {
             }
             Message::RescanTrash => {
                 // Update trash icon if empty/full
+                self.wmde_trash_empty = Trash::is_empty();
                 let maybe_entity = self.nav_model.iter().find(|&entity| {
                     self.nav_model
                         .data::<Location>(entity)
@@ -7836,6 +7894,39 @@ fn wmde_tab_icon(location: &Location) -> widget::Icon {
     icon::icon(tab::wmde_location_icon(location)).size(16)
 }
 
+// WMDE: a sidebar group header - bold, no icon, and indented less than the entries below it,
+// so it reads as the separator between groups (there are no divider lines in this sidebar).
+fn wmde_sidebar_header(name: String, first: bool) -> Element<'static, Message> {
+    let cosmic_theme::Spacing {
+        space_xxxs,
+        space_xxs,
+        space_xs,
+        ..
+    } = theme::spacing();
+    widget::container(widget::text::heading(name))
+        // The gap that separates the groups rides above the header; the first one sits flush
+        // with the top of the sidebar.
+        .padding([
+            if first { 0 } else { space_xs },
+            space_xxs,
+            space_xxxs,
+            space_xxs,
+        ])
+        .into()
+}
+
+// WMDE: labels are ellipsized rather than wrapped - a long share name ("/ on johndoe...")
+// must not push the sidebar into a second line or clip mid-glyph.
+fn wmde_sidebar_label(name: String) -> widget::Text<'static, cosmic::Theme, cosmic::Renderer> {
+    use cosmic::iced::advanced::text::{Ellipsize, EllipsizeHeightLimit};
+    widget::text(name)
+        .wrapping(cosmic::iced::advanced::text::Wrapping::None)
+        .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+        // Fill, so the paragraph is laid out against the sidebar width and actually reaches
+        // the ellipsize limit instead of measuring its own (unbounded) intrinsic width.
+        .width(Length::Fill)
+}
+
 // WMDE: one sidebar row (icon + label), shared by the favorites and drives loops.
 // Left click navigates the active tab; middle click opens the target in a background tab.
 fn wmde_sidebar_entry(
@@ -7855,7 +7946,7 @@ fn wmde_sidebar_entry(
         widget::button::custom(
             widget::row::with_children(vec![
                 icon::icon(icon_handle).size(16).into(),
-                widget::text(name).into(),
+                wmde_sidebar_label(name).into(),
             ])
             .spacing(space_xxs)
             .align_y(Alignment::Center),
@@ -7880,6 +7971,7 @@ fn wmde_sidebar_entry(
 // ONE clickable button (the bar is part of the item; no separate "free" caption).
 fn wmde_drive_entry(
     name: String,
+    icon_handle: widget::icon::Handle,
     location: Location,
     path: PathBuf,
     selected: bool,
@@ -7895,10 +7987,8 @@ fn wmde_drive_entry(
     let mid_location = location.clone();
     let eject_path = path;
     let label = widget::row::with_children(vec![
-        icon::icon(icon::from_name("drive-harddisk-symbolic").size(16).handle())
-            .size(16)
-            .into(),
-        widget::text(name).into(),
+        icon::icon(icon_handle).size(16).into(),
+        wmde_sidebar_label(name).into(),
     ])
     .spacing(space_xxs)
     .align_y(Alignment::Center);

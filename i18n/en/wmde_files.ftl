@@ -8,6 +8,10 @@ no-results = No results found
 filesystem = Filesystem
 home = Home
 networks = Network
+# Sidebar group headers
+places = Places
+devices = Devices
+browse-network = Browse network
 notification-in-progress = File operations are in progress
 trash = Trash
 recents = Recents

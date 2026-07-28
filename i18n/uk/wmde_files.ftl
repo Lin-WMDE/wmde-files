@@ -4,6 +4,10 @@ empty-folder-hidden = Порожня тека (містить приховані
 searching-network = Пошук у мережі...
 filesystem = Файлова система
 home = Домівка
+# Sidebar group headers
+places = Місця
+devices = Пристрої
+browse-network = Огляд мережі
 trash = Смітник
 recents = Нещодавні
 undo = Скасувати
