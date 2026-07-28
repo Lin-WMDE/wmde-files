@@ -6914,6 +6914,10 @@ impl Application for App {
                                 background: Some(cosmic::iced::Background::Color(
                                     cosmic::iced::Color::from(theme.cosmic().background(false).divider),
                                 )),
+                                // WMDE: a 1px rule has to land on one pixel row. Unsnapped it
+                                // smears across two at half intensity - iced only rounds a fill
+                                // to the grid when snap is set, and the default leaves it off.
+                                snap: true,
                                 ..Default::default()
                             }
                         }))
@@ -6931,6 +6935,9 @@ impl Application for App {
         // paints the title bar with, so body and title bar read as one Explorer window.
         .class(theme::Container::custom(|theme| widget::container::Style {
             background: Some(cosmic::iced::Background::Color(wmde_surface(theme))),
+            // WMDE: this is what everything else in the window is painted against, so its own
+            // edges must sit on the pixel grid - see the menu strip below.
+            snap: true,
             ..Default::default()
         }))
         .width(Length::Fill)
@@ -7788,6 +7795,11 @@ pub(crate) fn wmde_field_border(theme: &theme::Theme) -> cosmic::iced::Color {
 fn wmde_menubar_container() -> theme::Container<'static> {
     theme::Container::custom(|theme| widget::container::Style {
         background: Some(cosmic::iced::Background::Color(wmde_menubar(theme))),
+        // WMDE: snap the fill to the pixel grid. An unsnapped strip ends on a fractional row and
+        // covers it only partly, while a neighbour painted with snap starts at the rounded one -
+        // the sliver between them belongs to neither. In wmde-term, where nothing opaque sits
+        // behind the body, exactly this showed the desktop as a hairline under the menu.
+        snap: true,
         ..Default::default()
     })
 }

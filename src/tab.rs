@@ -5846,6 +5846,11 @@ impl Tab {
                 width: 1.0,
                 radius: [2.0; 4].into(),
             },
+            // WMDE: the 1px frame is the whole point of this field, and its twin - the search
+            // input to its right - is a text_input, which libcosmic always paints snapped. Left
+            // unsnapped, the two matching Win11 fields render side by side with one crisp frame
+            // and one smeared across two rows at half intensity.
+            snap: true,
             ..Default::default()
         }))
         .padding([0, space_xxs])
