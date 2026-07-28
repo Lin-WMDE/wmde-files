@@ -1924,7 +1924,7 @@ impl App {
                 let ic = if path.is_dir() {
                     tab::folder_icon(&path, 16)
                 } else {
-                    icon::from_name("text-x-generic").size(16).handle()
+                    sidebar::named("text-x-generic")
                 };
                 let selected = current_path.as_deref() == Some(path.as_path());
                 let location = match favorite {
@@ -1945,7 +1945,7 @@ impl App {
 
         if self.config.show_recents {
             col = col.push(wmde_sidebar_entry(
-                icon::from_name("document-open-recent").size(16).handle(),
+                sidebar::named("document-open-recent"),
                 fl!("recents"),
                 Location::Recents,
                 active_location == Some(&Location::Recents),
@@ -1953,13 +1953,11 @@ impl App {
         }
 
         col = col.push(wmde_sidebar_entry(
-            icon::from_name(if self.wmde_trash_empty {
+            sidebar::named(if self.wmde_trash_empty {
                 "user-trash"
             } else {
                 "user-trash-full"
-            })
-            .size(16)
-            .handle(),
+            }),
             fl!("trash"),
             Location::Trash,
             active_location == Some(&Location::Trash),
@@ -1974,7 +1972,7 @@ impl App {
         let mut shares = Vec::new();
         drives.push((
             fl!("filesystem"),
-            icon::from_name("drive-harddisk").size(16).handle(),
+            sidebar::named("drive-harddisk"),
             Location::Path(PathBuf::from("/")),
             PathBuf::from("/"),
             false,
@@ -1994,13 +1992,11 @@ impl App {
                             Location::Path(path.clone())
                         };
                         let ic = item.icon(false).unwrap_or_else(|| {
-                            icon::from_name(if remote {
+                            sidebar::named(if remote {
                                 "folder-remote"
                             } else {
                                 "drive-harddisk"
                             })
-                            .size(16)
-                            .handle()
                         });
                         let entry = (item.name(), ic, location, path, true);
                         if remote {
@@ -2043,7 +2039,7 @@ impl App {
             });
             col = col.push(sidebar::header(fl!("networks"), false));
             col = col.push(wmde_sidebar_entry(
-                icon::from_name("network-workgroup").size(16).handle(),
+                sidebar::named("network-workgroup"),
                 fl!("browse-network"),
                 Location::Network("network:///".to_string(), fl!("networks"), None),
                 net_selected,

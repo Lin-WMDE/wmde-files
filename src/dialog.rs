@@ -947,16 +947,14 @@ impl App {
                 let ic = if path.is_dir() {
                     tab::folder_icon(&path, 16)
                 } else {
-                    widget::icon::from_name("text-x-generic").size(16).handle()
+                    sidebar::named("text-x-generic")
                 };
                 col = col.push(entry(ic, name, Location::Path(path)));
             }
         }
         if self.flags.config.show_recents {
             col = col.push(entry(
-                widget::icon::from_name("document-open-recent")
-                    .size(16)
-                    .handle(),
+                sidebar::named("document-open-recent"),
                 fl!("recents"),
                 Location::Recents,
             ));
@@ -966,7 +964,7 @@ impl App {
         // (icon, name, nav_location, fuse_path, ejectable), split by locality as in the main
         // window. Only the root filesystem is not ejectable.
         let mut drives = vec![(
-            widget::icon::from_name("drive-harddisk").size(16).handle(),
+            sidebar::named("drive-harddisk"),
             fl!("filesystem"),
             Location::Path(PathBuf::from("/")),
             PathBuf::from("/"),
@@ -980,13 +978,11 @@ impl App {
                 {
                     let remote = item.is_remote();
                     let ic = item.icon(false).unwrap_or_else(|| {
-                        widget::icon::from_name(if remote {
+                        sidebar::named(if remote {
                             "folder-remote"
                         } else {
                             "drive-harddisk"
                         })
-                        .size(16)
-                        .handle()
                     });
                     // The dialog navigates mounts by their FUSE path: it has none of the
                     // machinery the main window uses to browse an smb:// URI.

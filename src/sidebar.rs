@@ -15,6 +15,19 @@ use cosmic::{Element, cosmic_theme, theme};
 
 use crate::mouse_area::MouseArea;
 
+/// Look up a sidebar icon by name.
+///
+/// `prefer_svg` is what makes this different from a plain `icon::from_name`, and it is load
+/// bearing: the lookup sorts scalable directories ahead of every fixed-size one BEFORE it
+/// compares sizes (cosmic-freedesktop-icons, `closest_match_size`), so it decides between
+/// Qogir's two drawing styles. `scalable/` is the full-colour art; `16/` is a mono outline in
+/// the theme's ink. Without this the folders (which come through `tab::folder_icon`, where the
+/// flag is already set) came out blue while Trash, Filesystem and the rest came out as grey
+/// outlines in the same list.
+pub fn named(name: &'static str) -> widget::icon::Handle {
+    icon::from_name(name).prefer_svg(true).size(16).handle()
+}
+
 /// A group header - bold, no icon, and indented less than the entries below it, so it reads
 /// as the separator between groups (there are no divider lines in this sidebar).
 pub fn header<M: 'static>(name: String, first: bool) -> Element<'static, M> {
