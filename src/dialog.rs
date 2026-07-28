@@ -31,6 +31,7 @@ use std::{env, fmt, fs};
 
 use crate::app::{
     Action, ContextPage, Message as AppMessage, PreviewItem, PreviewKind, REPLACE_BUTTON_ID,
+    wmde_fs_usage,
 };
 use crate::config::{
     Config, DialogConfig, Favorite, TIME_CONFIG_ID, ThumbCfg, TimeConfig, TypeToSearch,
@@ -38,6 +39,7 @@ use crate::config::{
 use crate::key_bind::key_binds;
 use crate::localize::LANGUAGE_SORTER;
 use crate::mounter::{MOUNTERS, MounterItem, MounterItems, MounterKey, MounterMessage};
+use crate::sidebar;
 use crate::tab::{self, ItemMetadata, Location, SearchLocation, Tab};
 use crate::zoom::{zoom_in_view, zoom_out_view, zoom_to_default};
 use crate::{fl, home_dir, menu, mime_icon};
@@ -483,6 +485,8 @@ enum Message {
     TimeConfigChange(TimeConfig),
     ToggleFoldersFirst,
     ToggleShowHidden,
+    // WMDE: unmount the drive whose FUSE path this is, from the sidebar's eject button.
+    WmdeEject(PathBuf),
     ZoomDefault,
     ZoomIn,
     ZoomOut,
@@ -553,6 +557,9 @@ struct App {
     modifiers: Modifiers,
     mounter_items: FxHashMap<MounterKey, MounterItems>,
     nav_model: segmented_button::SingleSelectModel,
+    // WMDE: cached disk usage (total bytes, free bytes) per drive path, exactly as the main
+    // window does it - refreshed on mount changes, never stat-ed from a render.
+    wmde_disk_usage: HashMap<PathBuf, (u64, u64)>,
     result_opt: Option<DialogResult>,
     search_id: widget::Id,
     tab: Tab,
@@ -876,6 +883,158 @@ impl App {
         Task::none()
     }
 
+    // WMDE: recompute cached per-drive disk usage. Called on startup and on mount changes,
+    // NOT on every render. Remote mounts are skipped so a hung network mount can't freeze the UI.
+    fn wmde_refresh_disk_usage(&mut self) {
+        self.wmde_disk_usage.clear();
+        let root = PathBuf::from("/");
+        if let Some(usage) = wmde_fs_usage(&root) {
+            self.wmde_disk_usage.insert(root, usage);
+        }
+        for (_key, items) in self.mounter_items.iter() {
+            for item in items.iter() {
+                if item.is_mounted()
+                    && !item.is_remote()
+                    && let Some(path) = item.path()
+                    && let Some(usage) = wmde_fs_usage(&path)
+                {
+                    self.wmde_disk_usage.insert(path, usage);
+                }
+            }
+        }
+    }
+
+    // WMDE: the same grouped sidebar the main window draws (see src/sidebar.rs). Two rows the
+    // main window has are deliberately absent here: Trash, because a file chooser has no
+    // business picking out of it, and "Browse network", because network:/// is a dead end in
+    // the dialog - it never handles tab::Command::AddNetworkDrive or NetworkDriveOpen, so the
+    // view's buttons would do nothing. Already-mounted shares are listed and work.
+    fn wmde_sidebar(&self) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_xxxs,
+            space_xxs,
+            ..
+        } = theme::spacing();
+        let location = &self.tab.location;
+        let mut col = widget::column::with_capacity(self.flags.config.favorites.len() + 8)
+            .spacing(space_xxxs)
+            .padding([space_xxxs, space_xxs]);
+
+        let entry = |icon_handle, name, target: Location| {
+            let selected = *location == target;
+            sidebar::entry(
+                icon_handle,
+                name,
+                selected,
+                Message::TabMessage(tab::Message::Location(target)),
+                None,
+            )
+        };
+
+        // --- Places ---
+        col = col.push(sidebar::header(fl!("places"), true));
+        for favorite in &self.flags.config.favorites {
+            if let Some(path) = favorite.path_opt() {
+                let name = if matches!(favorite, Favorite::Home) {
+                    fl!("home")
+                } else if let Favorite::Network { name, .. } = favorite {
+                    name.clone()
+                } else if let Some(file_name) = path.file_name().and_then(|x| x.to_str()) {
+                    file_name.to_string()
+                } else {
+                    continue;
+                };
+                let ic = if path.is_dir() {
+                    tab::folder_icon(&path, 16)
+                } else {
+                    widget::icon::from_name("text-x-generic").size(16).handle()
+                };
+                col = col.push(entry(ic, name, Location::Path(path)));
+            }
+        }
+        if self.flags.config.show_recents {
+            col = col.push(entry(
+                widget::icon::from_name("document-open-recent")
+                    .size(16)
+                    .handle(),
+                fl!("recents"),
+                Location::Recents,
+            ));
+        }
+
+        // --- Devices / Network ---
+        // (icon, name, nav_location, fuse_path, ejectable), split by locality as in the main
+        // window. Only the root filesystem is not ejectable.
+        let mut drives = vec![(
+            widget::icon::from_name("drive-harddisk").size(16).handle(),
+            fl!("filesystem"),
+            Location::Path(PathBuf::from("/")),
+            PathBuf::from("/"),
+            false,
+        )];
+        let mut shares = Vec::new();
+        for (_key, items) in self.mounter_items.iter() {
+            for item in items.iter() {
+                if item.is_mounted()
+                    && let Some(path) = item.path()
+                {
+                    let remote = item.is_remote();
+                    let ic = item.icon(false).unwrap_or_else(|| {
+                        widget::icon::from_name(if remote {
+                            "folder-remote"
+                        } else {
+                            "drive-harddisk"
+                        })
+                        .size(16)
+                        .handle()
+                    });
+                    // The dialog navigates mounts by their FUSE path: it has none of the
+                    // machinery the main window uses to browse an smb:// URI.
+                    let e = (ic, item.name(), Location::Path(path.clone()), path, true);
+                    if remote {
+                        shares.push(e);
+                    } else {
+                        drives.push(e);
+                    }
+                }
+            }
+        }
+
+        let drive_row = |ic, name, target: Location, path: PathBuf, ejectable: bool| {
+            sidebar::drive(
+                ic,
+                name,
+                *location == target,
+                self.wmde_disk_usage.get(&path).map(|(total, avail)| {
+                    if *total > 0 {
+                        total.saturating_sub(*avail) as f32 / *total as f32
+                    } else {
+                        0.0
+                    }
+                }),
+                Message::TabMessage(tab::Message::Location(target)),
+                None,
+                ejectable.then(|| Message::WmdeEject(path)),
+            )
+        };
+
+        col = col.push(sidebar::header(fl!("devices"), false));
+        for (ic, name, target, path, ejectable) in drives {
+            col = col.push(drive_row(ic, name, target, path, ejectable));
+        }
+        if !shares.is_empty() {
+            col = col.push(sidebar::header(fl!("networks"), false));
+            for (ic, name, target, path, ejectable) in shares {
+                col = col.push(drive_row(ic, name, target, path, ejectable));
+            }
+        }
+
+        widget::scrollable(col)
+            .height(Length::Fill)
+            .width(Length::Fixed(208.0))
+            .into()
+    }
+
     fn update_nav_model(&mut self) {
         let mut nav_model = segmented_button::ModelBuilder::default();
 
@@ -1066,6 +1225,7 @@ impl Application for App {
             modifiers: Modifiers::empty(),
             mounter_items: FxHashMap::default(),
             nav_model: segmented_button::ModelBuilder::default().build(),
+            wmde_disk_usage: HashMap::default(),
             result_opt: None,
             search_id: widget::Id::new("Dialog File Search"),
             tab,
@@ -1082,6 +1242,8 @@ impl Application for App {
             app.update_watcher(),
             app.rescan_tab(None),
         ]);
+
+        app.wmde_refresh_disk_usage();
 
         (app, commands)
     }
@@ -1272,26 +1434,10 @@ impl Application for App {
             return None;
         }
 
-        let nav_model = self.nav_model()?;
-
-        let mut nav = cosmic::widget::nav_bar(nav_model, |entity| {
-            cosmic::action::cosmic(cosmic::app::Action::NavBar(entity))
-        })
-        //TODO .on_close(|entity| cosmic::cosmic::action::app(Message::NavBarClose(entity)))
-        .close_icon(
-            widget::icon::from_name("media-eject-symbolic")
-                .size(16)
-                .icon(),
-        )
-        .into_container();
-
-        if !self.core().is_condensed() {
-            nav = nav.max_width(280);
-        }
-
-        Some(Element::from(
-            nav.width(Length::Shrink).height(Length::Fill),
-        ))
+        // WMDE: the grouped sidebar replaces the upstream segmented-button nav bar. The
+        // nav_model is still built and kept in sync - the framework's own nav handling and
+        // keyboard focus still go through it.
+        Some(self.wmde_sidebar().map(cosmic::action::app))
     }
 
     fn nav_model(&self) -> Option<&segmented_button::SingleSelectModel> {
@@ -1564,6 +1710,7 @@ impl Application for App {
                 // Update nav bar
                 //TODO: this could change favorites IDs while they are in use
                 self.update_nav_model();
+                self.wmde_refresh_disk_usage();
 
                 return Task::batch(commands);
             }
@@ -1992,6 +2139,22 @@ impl Application for App {
             Message::TimeConfigChange(time_config) => {
                 self.flags.config.tab.military_time = time_config.military_time;
                 return self.update_config();
+            }
+            Message::WmdeEject(path) => {
+                #[cfg(feature = "gvfs")]
+                {
+                    for (k, mounter_items) in &self.mounter_items {
+                        if let Some(mounter) = MOUNTERS.get(k)
+                            && let Some(item) = mounter_items
+                                .iter()
+                                .find(|&item| item.path().is_some_and(|p| p == path))
+                        {
+                            return mounter
+                                .unmount(item.clone())
+                                .map(|()| cosmic::action::none());
+                        }
+                    }
+                }
             }
             Message::ToggleFoldersFirst => {
                 return self.with_dialog_config(|config| {

@@ -76,6 +76,7 @@ use crate::operation::{
     Controller, Operation, OperationError, OperationErrorType, OperationSelection, ReplaceResult,
     copy_unique_path,
 };
+use crate::sidebar;
 use crate::spawn_detached::spawn_detached;
 use crate::tab::{
     self, HOVER_DURATION, HeadingOptions, ItemMetadata, Location, SORT_OPTION_FALLBACK,
@@ -1907,7 +1908,7 @@ impl App {
             .padding([space_xxxs, space_xxs]);
 
         // --- WMDE: Places ---
-        col = col.push(wmde_sidebar_header(fl!("places"), true));
+        col = col.push(sidebar::header(fl!("places"), true));
 
         for favorite in self.config.favorites.iter() {
             if let Some(path) = favorite.path_opt() {
@@ -1965,7 +1966,7 @@ impl App {
         ));
 
         // --- WMDE: devices with disk-usage bars ---
-        col = col.push(wmde_sidebar_header(fl!("devices"), false));
+        col = col.push(sidebar::header(fl!("devices"), false));
 
         // (name, icon, nav_location, fuse_path, ejectable), split by locality: local disks land
         // under Devices, gvfs mounts of remote shares under Network - as in the Nemo layout.
@@ -2040,7 +2041,7 @@ impl App {
             let net_selected = self.tab_model.active_data::<Tab>().is_some_and(|t| {
                 matches!(&t.location, Location::Network(uri, ..) if uri == "network:///")
             });
-            col = col.push(wmde_sidebar_header(fl!("networks"), false));
+            col = col.push(sidebar::header(fl!("networks"), false));
             col = col.push(wmde_sidebar_entry(
                 icon::from_name("network-workgroup").size(16).handle(),
                 fl!("browse-network"),
@@ -7775,20 +7776,6 @@ pub(crate) mod test_utils {
     }
 }
 
-// WMDE: neutral selection appearance for sidebar items - gray bg (matches ListItem's
-// selected background) but keeps text/icon neutral instead of the accent tint, so the
-// selected entry reads as Win11-style (no blue icon).
-fn wmde_nav_selected_appearance(theme: &theme::Theme) -> widget::button::Style {
-    let cosmic = theme.cosmic();
-    let mut appearance = widget::button::Style::new();
-    appearance.background =
-        Some(cosmic::iced::Color::from(cosmic.primary(false).component.hover).into());
-    appearance.text_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
-    appearance.icon_color = Some(cosmic::iced::Color::from(cosmic.on_bg_color()));
-    appearance.border_radius = [2.0_f32; 4].into();
-    appearance
-}
-
 // WMDE: Explorer chrome colors, read from the active palette rather than hardcoded, so the
 // light theme renders correctly too. The menu row and the active tab sit one container layer
 // above the body (primary), which is what keeps the strip distinct in either theme; the WMDE
@@ -7864,17 +7851,8 @@ fn wmde_tab_style() -> theme::SegmentedButton {
     }))
 }
 
-fn wmde_nav_selected_style() -> theme::Button {
-    theme::Button::Custom {
-        active: Box::new(|_focused, theme| wmde_nav_selected_appearance(theme)),
-        disabled: Box::new(|theme| wmde_nav_selected_appearance(theme)),
-        hovered: Box::new(|_focused, theme| wmde_nav_selected_appearance(theme)),
-        pressed: Box::new(|_focused, theme| wmde_nav_selected_appearance(theme)),
-    }
-}
-
 // WMDE: total and available bytes for the filesystem containing `path`, via statvfs.
-fn wmde_fs_usage(path: &std::path::Path) -> Option<(u64, u64)> {
+pub(crate) fn wmde_fs_usage(path: &std::path::Path) -> Option<(u64, u64)> {
     use std::os::unix::ffi::OsStrExt;
     let cpath = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
@@ -7894,81 +7872,23 @@ fn wmde_tab_icon(location: &Location) -> widget::Icon {
     icon::icon(tab::wmde_location_icon(location)).size(16)
 }
 
-// WMDE: a sidebar group header - bold, no icon, and indented less than the entries below it,
-// so it reads as the separator between groups (there are no divider lines in this sidebar).
-fn wmde_sidebar_header(name: String, first: bool) -> Element<'static, Message> {
-    let cosmic_theme::Spacing {
-        space_xxxs,
-        space_xxs,
-        space_xs,
-        ..
-    } = theme::spacing();
-    widget::container(widget::text::heading(name))
-        // The gap that separates the groups rides above the header; the first one sits flush
-        // with the top of the sidebar.
-        .padding([
-            if first { 0 } else { space_xs },
-            space_xxs,
-            space_xxxs,
-            space_xxs,
-        ])
-        .into()
-}
-
-// WMDE: labels are ellipsized rather than wrapped - a long share name ("/ on johndoe...")
-// must not push the sidebar into a second line or clip mid-glyph.
-fn wmde_sidebar_label(name: String) -> widget::Text<'static, cosmic::Theme, cosmic::Renderer> {
-    use cosmic::iced::advanced::text::{Ellipsize, EllipsizeHeightLimit};
-    widget::text(name)
-        .wrapping(cosmic::iced::advanced::text::Wrapping::None)
-        .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
-        // Fill, so the paragraph is laid out against the sidebar width and actually reaches
-        // the ellipsize limit instead of measuring its own (unbounded) intrinsic width.
-        .width(Length::Fill)
-}
-
-// WMDE: one sidebar row (icon + label), shared by the favorites and drives loops.
-// Left click navigates the active tab; middle click opens the target in a background tab.
+// WMDE: the shared sidebar rows, wired to this window's actions - left click navigates the
+// active tab, middle click opens the target in a background tab.
 fn wmde_sidebar_entry(
     icon_handle: widget::icon::Handle,
     name: String,
     location: Location,
     selected: bool,
 ) -> Element<'static, Message> {
-    let cosmic_theme::Spacing {
-        space_xxxs,
-        space_xxs,
-        space_xs,
-        ..
-    } = theme::spacing();
-    let mid_location = location.clone();
-    crate::mouse_area::MouseArea::new(
-        widget::button::custom(
-            widget::row::with_children(vec![
-                icon::icon(icon_handle).size(16).into(),
-                wmde_sidebar_label(name).into(),
-            ])
-            .spacing(space_xxs)
-            .align_y(Alignment::Center),
-        )
-        .on_press(Message::TabMessage(
-            None,
-            tab::Message::Location(location),
-        ))
-        .padding([space_xxxs, space_xs])
-        .class(if selected {
-            wmde_nav_selected_style()
-        } else {
-            theme::Button::ListItem([2.0; 4])
-        })
-        .width(Length::Fill),
+    sidebar::entry(
+        icon_handle,
+        name,
+        selected,
+        Message::TabMessage(None, tab::Message::Location(location.clone())),
+        Some(Message::WmdeOpenInBackgroundTab(location)),
     )
-    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_location.clone()))
-    .into()
 }
 
-// WMDE: a drive sidebar entry - label plus an optional thin disk-usage bar, all inside
-// ONE clickable button (the bar is part of the item; no separate "free" caption).
 fn wmde_drive_entry(
     name: String,
     icon_handle: widget::icon::Handle,
@@ -7978,61 +7898,14 @@ fn wmde_drive_entry(
     fraction: Option<f32>,
     ejectable: bool,
 ) -> Element<'static, Message> {
-    let cosmic_theme::Spacing {
-        space_xxxs,
-        space_xxs,
-        space_xs,
-        ..
-    } = theme::spacing();
-    let mid_location = location.clone();
-    let eject_path = path;
-    let label = widget::row::with_children(vec![
-        icon::icon(icon_handle).size(16).into(),
-        wmde_sidebar_label(name).into(),
-    ])
-    .spacing(space_xxs)
-    .align_y(Alignment::Center);
-    let content: Element<'static, Message> = match fraction {
-        Some(f) => widget::column::with_children(vec![
-            label.into(),
-            // thinner than the default 4px girth via a fixed-height wrapper
-            widget::container(widget::progress_bar::determinate_linear(f).width(Length::Fill))
-                .width(Length::Fill)
-                .height(Length::Fixed(3.0))
-                .into(),
-        ])
-        .spacing(space_xxxs)
-        .into(),
-        None => label.into(),
-    };
-    let nav = crate::mouse_area::MouseArea::new(
-        widget::button::custom(content)
-            .on_press(Message::TabMessage(
-                None,
-                tab::Message::Location(location),
-            ))
-            .padding([space_xxxs, space_xs])
-            .class(if selected {
-                wmde_nav_selected_style()
-            } else {
-                theme::Button::ListItem([2.0; 4])
-            })
-            .width(Length::Fill),
+    sidebar::drive(
+        icon_handle,
+        name,
+        selected,
+        fraction,
+        Message::TabMessage(None, tab::Message::Location(location.clone())),
+        Some(Message::WmdeOpenInBackgroundTab(location)),
+        ejectable.then(|| Message::WmdeEject(path)),
     )
-    .on_middle_press(move |_| Message::WmdeOpenInBackgroundTab(mid_location.clone()));
-
-    if ejectable {
-        widget::row::with_children(vec![
-            nav.into(),
-            widget::button::custom(widget::icon::from_name("media-eject-symbolic").size(16))
-                .on_press(Message::WmdeEject(eject_path))
-                .padding(space_xxs)
-                .class(theme::Button::Icon)
-                .into(),
-        ])
-        .align_y(Alignment::Center)
-        .into()
-    } else {
-        nav.into()
-    }
 }
+
