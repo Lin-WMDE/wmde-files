@@ -209,7 +209,7 @@ pub enum Action {
 impl Action {
     const fn message(&self, entity_opt: Option<Entity>) -> Message {
         match self {
-            Self::About => Message::ToggleContextPage(ContextPage::About),
+            Self::About => Message::OpenAbout,
             Self::AddToSidebar => Message::AddToSidebar(entity_opt),
             Self::Compress => Message::Compress(entity_opt),
             Self::Copy => Message::Copy(entity_opt),
@@ -395,6 +395,7 @@ pub enum Message {
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     NotifyEvents(Vec<DebouncedEvent>),
     NotifyWatcher(WatcherWrapper),
+    OpenAbout,
     OpenTerminal(Option<Entity>),
     OpenInNewTab(Option<Entity>),
     OpenInNewWindow(Option<Entity>),
@@ -498,7 +499,6 @@ pub enum Message {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContextPage {
-    About,
     EditHistory,
     NetworkDrive,
     Preview(Option<Entity>, PreviewKind),
@@ -5141,6 +5141,9 @@ impl Application for App {
                 self.config.tab.military_time = time_config.military_time;
                 return self.update_config();
             }
+            Message::OpenAbout => {
+                return self.open_about(self.about.clone());
+            }
             Message::ToggleContextPage(context_page) => {
                 //TODO: ensure context menus are closed
                 if self.context_page == context_page
@@ -5826,11 +5829,6 @@ impl Application for App {
         }
 
         Some(match &self.context_page {
-            ContextPage::About => context_drawer::about(
-                &self.about,
-                |url| Message::LaunchUrl(url.to_string()),
-                Message::ToggleContextPage(ContextPage::About),
-            ),
             ContextPage::EditHistory => context_drawer::context_drawer(
                 self.edit_history(),
                 Message::ToggleContextPage(ContextPage::EditHistory),
