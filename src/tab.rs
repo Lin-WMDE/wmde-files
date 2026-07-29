@@ -5333,14 +5333,14 @@ impl Tab {
                         if let Some(error_msg) = error_msg_opt {
                             widget::column::with_capacity(2)
                                 .push(widget::image(image_handle))
-                                .push(widget::text(format!("⚠ {}", error_msg)).size(13))
+                                .push(widget::text(format!("⚠ {}", error_msg)).size(12))
                                 .padding(space_xs)
                                 .align_x(cosmic::iced::Alignment::Center)
                                 .into()
                         } else if is_loading {
                             widget::column::with_capacity(2)
                                 .push(widget::image(image_handle))
-                                .push(widget::text("Loading higher resolution...").size(14))
+                                .push(widget::text("Loading higher resolution...").size(12))
                                 .padding(space_xs)
                                 .align_x(cosmic::iced::Alignment::Center)
                                 .into()
