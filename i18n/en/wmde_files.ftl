@@ -19,6 +19,8 @@ today = Today
 
 # Desktop view options
 desktop-view-options = Desktop view options...
+window-view-options = Desktop view options
+window-preview = Preview
 show-on-desktop = Show on Desktop
 desktop-folder-content = Desktop folder content
 mounted-drives = Mounted drives

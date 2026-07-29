@@ -1,7 +1,7 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use cosmic::app::{self, Core, Task, context_drawer};
+use cosmic::app::{self, Chrome, Core, Task, WindowPreset, context_drawer};
 use cosmic::core::Auto;
 use cosmic::cosmic_config::{self, ConfigSet};
 use cosmic::iced::clipboard::dnd::DndAction;
@@ -89,6 +89,22 @@ use crate::{FxOrderMap, context_action, fl, home_dir, menu, mime_icon};
 /// Window-manager app id used for floating file-chooser dialog windows.
 /// Must stay byte-identical to wmde-comp's tiling exception for this id.
 pub const DIALOG_APP_ID: &str = "fun.wmde.files.dialog";
+
+/// Shape of the desktop view options window.
+const VIEW_OPTIONS_WINDOW: WindowPreset =
+    WindowPreset::utility(Size::new(480.0, 444.0), Size::new(360.0, 180.0));
+
+/// Shape of the preview window.
+const PREVIEW_WINDOW: WindowPreset =
+    WindowPreset::utility(Size::new(480.0, 600.0), Size::new(360.0, 180.0));
+
+/// Scrollable body of a framed secondary window. The frame paints the background.
+fn window_body<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    widget::container(widget::scrollable(content.into()))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
 
 static PERMANENT_DELETE_BUTTON_ID: LazyLock<widget::Id> =
     LazyLock::new(|| widget::Id::new("permanent-delete-button"));
@@ -475,7 +491,10 @@ pub enum Message {
     UndoTrashStart(Vec<TrashItem>),
     WindowClose,
     WindowCloseRequested(window::Id),
+    WindowCloseId(window::Id),
+    WindowDrag(window::Id),
     WindowMaximize(window::Id, bool),
+    WindowToggleMaximize(window::Id),
     WindowNew,
     ZoomDefault(Option<Entity>),
     ZoomIn(Option<Entity>),
@@ -3322,25 +3341,13 @@ impl Application for App {
                 }
             }
             Message::DesktopViewOptions => {
-                let mut settings = window::Settings {
-                    decorations: true,
-                    min_size: Some(Size::new(360.0, 180.0)),
-                    resizable: true,
-                    size: Size::new(480.0, 444.0),
-                    transparent: true,
-                    ..Default::default()
-                };
-
-                #[cfg(target_os = "linux")]
-                {
-                    // Use the dialog ID to make it float
-                    settings.platform_specific.application_id =
-                        DIALOG_APP_ID.to_string();
-                }
-
-                let (id, command) = window::open(settings);
+                // The dialog app id is what makes the window float, see wmde-comp's
+                // tiling exceptions.
+                let (id, command) = window::open(VIEW_OPTIONS_WINDOW.settings(DIALOG_APP_ID));
                 self.windows
                     .insert(id, Window::new(WindowKind::DesktopViewOptions));
+                // A window title is read once, when the window opens.
+                let _ = self.set_window_title(fl!("window-view-options"), id);
                 return command.map(|_id| cosmic::action::none());
             }
             Message::DesktopDialogs(show) => {
@@ -4463,27 +4470,14 @@ impl Application for App {
                         };
 
                         if let Some(preview_kind) = preview_kind {
-                            let mut settings = window::Settings {
-                                decorations: true,
-                                min_size: Some(Size::new(360.0, 180.0)),
-                                resizable: true,
-                                size: Size::new(480.0, 600.0),
-                                transparent: true,
-                                ..Default::default()
-                            };
-
-                            #[cfg(target_os = "linux")]
-                            {
-                                // Use the dialog ID to make it float
-                                settings.platform_specific.application_id =
-                                    DIALOG_APP_ID.to_string();
-                            }
-
-                            let (id, command) = window::open(settings);
+                            let (id, command) =
+                                window::open(PREVIEW_WINDOW.settings(DIALOG_APP_ID));
                             self.windows.insert(
                                 id,
                                 Window::new(WindowKind::Preview(entity_opt, preview_kind)),
                             );
+                            // A window title is read once, when the window opens.
+                            let _ = self.set_window_title(fl!("window-preview"), id);
                             return Task::batch([
                                 self.update_desktop(), // Force re-calculating of directory sizes
                                 command.map(|_id| cosmic::action::none()),
@@ -5206,8 +5200,17 @@ impl Application for App {
                     ]);
                 }
             }
+            Message::WindowCloseId(id) => {
+                return window::close(id);
+            }
             Message::WindowCloseRequested(id) => {
                 self.remove_window(&id);
+            }
+            Message::WindowDrag(id) => {
+                return self.core.drag(Some(id));
+            }
+            Message::WindowToggleMaximize(id) => {
+                return self.core.toggle_maximize(Some(id));
             }
             Message::WindowMaximize(id, maximized) => {
                 return window::maximize(id, maximized);
@@ -6944,7 +6947,7 @@ impl Application for App {
     }
 
     fn view_window(&self, id: WindowId) -> Element<'_, Self::Message> {
-        let content = match self.windows.get(&id) {
+        let content: Element<'_, Message> = match self.windows.get(&id) {
             Some(window) => match &window.kind {
                 WindowKind::ContextMenu(entity, id) => match self.tab_model.data::<Tab>(*entity) {
                     Some(tab) => {
@@ -7004,14 +7007,39 @@ impl Application for App {
                         tab_column.into()
                     };
                 }
-                WindowKind::DesktopViewOptions => self.desktop_view_options(),
+                WindowKind::DesktopViewOptions => {
+                    return VIEW_OPTIONS_WINDOW.view(
+                        &self.core,
+                        id,
+                        Chrome::new(
+                            fl!("window-view-options"),
+                            Message::WindowCloseId(id),
+                            Message::WindowDrag(id),
+                        )
+                        .on_maximize(Message::WindowToggleMaximize(id)),
+                        window_body(self.desktop_view_options()),
+                    );
+                }
                 WindowKind::Dialogs(id) => match self.dialog() {
                     Some(element) => return widget::autosize::autosize(element, id.clone()).into(),
                     None => widget::space::horizontal().into(),
                 },
-                WindowKind::Preview(entity_opt, kind) => self
-                    .preview(entity_opt, kind, false)
-                    .map(|x| Message::TabMessage(*entity_opt, x)),
+                WindowKind::Preview(entity_opt, kind) => {
+                    return PREVIEW_WINDOW.view(
+                        &self.core,
+                        id,
+                        Chrome::new(
+                            fl!("window-preview"),
+                            Message::WindowCloseId(id),
+                            Message::WindowDrag(id),
+                        )
+                        .on_maximize(Message::WindowToggleMaximize(id)),
+                        window_body(
+                            self.preview(entity_opt, kind, false)
+                                .map(|x| Message::TabMessage(*entity_opt, x)),
+                        ),
+                    );
+                }
                 WindowKind::FileDialog(..) => match &self.file_dialog_opt {
                     Some(dialog) => return dialog.view(id),
                     None => widget::text("Unknown window ID").into(),
