@@ -422,6 +422,7 @@ removed-from-recents =
         [one] elemento
        *[other] elementi
     } da { recents }
+run = Esegui
 
 # WMDE additions (Win11-style chrome)
 search = Cerca

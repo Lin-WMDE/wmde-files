@@ -307,7 +307,7 @@ single-click = Cliceáil amháin le hoscailt
 
 ### Appearance
 
-appearance = Cuma
+appearance = Dealramh
 theme = Téama
 match-desktop = Meaitseáil deasc
 dark = Dorcha
@@ -443,6 +443,9 @@ context-action-confirm-warning =
     }.
 run = Rith
 rename-confirm = Athainmnigh
+checksum = { $kind } suim sheiceála
+calculate = Ríomh
+error = Earráid
 
 # WMDE additions (Win11-style chrome)
 search = Cuardaigh

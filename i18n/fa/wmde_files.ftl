@@ -345,6 +345,7 @@ sort-newest-first = جدیدترین در ابتدا
 sort-oldest-first = قدیمی‌ترین در ابتدا
 sort-smallest-to-largest = کوچک‌ترین به بزرگ‌ترین
 sort-largest-to-smallest = بزرگ‌ترین به کوچک‌ترین
+run = اجرا
 
 # WMDE additions (Win11-style chrome)
 search = جستجو

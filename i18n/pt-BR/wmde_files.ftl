@@ -446,6 +446,9 @@ context-action-confirm-warning =
     }.
 run = Executar
 rename-confirm = Renomear
+checksum = Soma de verificação { $kind }
+calculate = Calcular
+error = Erro
 
 # WMDE additions (Win11-style chrome)
 search = Pesquisar

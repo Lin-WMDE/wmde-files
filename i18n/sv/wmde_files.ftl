@@ -319,7 +319,7 @@ list-view = Listvy
 show-hidden-files = Visa dolda filer
 list-directories-first = Lista mappar först
 gallery-preview = Galleri förhandsvisning
-menu-settings = Inställningar…
+menu-settings = Inställningar...
 menu-about = Om WMDE Files...
 
 ## Sortera
@@ -419,6 +419,9 @@ context-action-confirm-warning =
     }.
 run = Kör
 rename-confirm = Byt namn
+checksum = { $kind }-kontrollsumma
+calculate = Beräkna
+error = Fel
 
 # WMDE additions (Win11-style chrome)
 search = Sök

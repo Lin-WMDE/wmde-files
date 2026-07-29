@@ -162,7 +162,7 @@ new-tab = Нова вкладка
 new-window = Нове вікно
 rename = Перейменувати...
 close-tab = Закрити вкладку
-quit = Вийти
+quit = Завершити
 
 ## Edit
 
@@ -186,7 +186,7 @@ menu-settings = Налаштування...
 menu-about = Про WMDE Files...
 repository = Сховище
 support = Підтримка
-details = Деталі
+details = Подробиці
 dismiss = Закрити повідомлення
 remove = Вилучити
 cancelled = Скасовані
@@ -393,6 +393,9 @@ context-action-confirm-warning =
 context-action = Контекстна дія
 rename-confirm = Перейменувати
 mixed = Змішано
+checksum = контрольна сума { $kind }
+calculate = Вирахувати
+error = Помилка
 
 # WMDE additions (Win11-style chrome)
 search = Пошук

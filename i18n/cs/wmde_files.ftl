@@ -428,6 +428,9 @@ context-action-confirm-warning =
     }.
 run = Spustit
 rename-confirm = Přejmenovat
+checksum = Kontrolní součet { $kind }
+calculate = Vypočítat
+error = Chyba
 
 # WMDE additions (Win11-style chrome)
 search = Hledat
