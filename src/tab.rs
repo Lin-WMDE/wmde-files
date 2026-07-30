@@ -262,6 +262,11 @@ fn icon_selection_colors(theme: &theme::Theme) -> (Color, Color) {
 fn selection_container(selected: bool, highlighted: bool) -> theme::Container<'static> {
     theme::Container::custom(move |theme| {
         let mut style = widget::container::Style::default();
+        // WMDE: the rectangle is edge-to-edge geometry, so it snaps. `Style::default` leaves
+        // `snap` off (it is gated on the `crisp` feature, which this build does not enable),
+        // and an unsnapped 1px border lands across two pixel rows at half strength each -
+        // enough to make a solid border look like no border at all.
+        style.snap = true;
         if selected {
             let (fill, border) = icon_selection_colors(theme);
             style.background = Some(fill.into());
