@@ -167,7 +167,7 @@ fn button_appearance(
         // the label keeps its normal colour instead of being inverted onto a solid accent
         // fill. The grid and desktop views paint this on a wrapping container instead (so the
         // icon and the label share one rectangle) and therefore never reach this branch.
-        let (fill, border) = selection_colors(theme, desktop);
+        let (fill, border) = selection_colors(theme);
         appearance.background = Some(fill.into());
         appearance.border_width = 1.0;
         appearance.border_color = border;
@@ -219,13 +219,11 @@ fn button_appearance(
     appearance
 }
 
-// WMDE: Windows-style selection - a translucent wash with a 1px brighter border, drawn as ONE
-// rectangle around the whole item (icon + label) instead of two separate solid boxes. Alphas
-// measured off w10/icon_selection.png: over the background the fill is the wash colour at ~12%
-// and the border at ~34%. Desktop icons wash with neutral white, exactly like the Win10
-// desktop; in the file manager the accent is used (as Explorer does), because a white wash is
-// invisible on a light background.
-fn selection_colors(theme: &theme::Theme, _desktop: bool) -> (Color, Color) {
+// WMDE: selection of a row in the LIST view - a translucent wash with a 1px brighter border.
+// Alphas measured off w10/icon_selection.png: over the background the fill is the wash colour
+// at ~12% and the border at ~34%. The grid and the desktop do not come here; they are tinted
+// with the accent, see `icon_selection_colors`.
+fn selection_colors(theme: &theme::Theme) -> (Color, Color) {
     // The wash has to LIGHTEN a dark background and DARKEN a light one - keying it off the
     // theme, not off desktop-vs-window. A dark accent wash over a dark background reads as a
     // hole rather than a highlight, which is exactly what the first attempt looked like.
@@ -238,17 +236,34 @@ fn selection_colors(theme: &theme::Theme, _desktop: bool) -> (Color, Color) {
     (Color { a: 0.12, ..wash }, Color { a: 0.34, ..wash })
 }
 
+// WMDE: selection of an icon in the grid and on the desktop, measured off
+// kde_file_selection.png: the fill is the accent at 30% and the border is the same accent
+// solid, one rectangle around the icon and its label. Corners stay square - `radius_xl` is
+// zero across the stack and selections are not an exception.
+//
+// The accent is taken per theme rather than literally. The reference accent #3DAEE9 is a light
+// blue; ours is the darker Windows #0078D7, and 30% of it over the dark window background
+// lands on #163A57 - a hole rather than a highlight, the same failure the wash above records.
+// `accent_text` is the palette's own accent made readable on dark, so the tint keeps the
+// reference's weight instead of its literal value.
+fn icon_selection_colors(theme: &theme::Theme) -> (Color, Color) {
+    let cosmic = theme.cosmic();
+    let accent = if cosmic.is_dark {
+        Color::from(cosmic.accent_text_color())
+    } else {
+        Color::from(cosmic.accent_color())
+    };
+
+    (Color { a: 0.30, ..accent }, accent)
+}
+
 /// WMDE: container style that paints the selection (and the drag/hover highlight) for a grid
 /// item, so the icon and its label share a single rectangle.
-fn selection_container(
-    selected: bool,
-    highlighted: bool,
-    desktop: bool,
-) -> theme::Container<'static> {
+fn selection_container(selected: bool, highlighted: bool) -> theme::Container<'static> {
     theme::Container::custom(move |theme| {
         let mut style = widget::container::Style::default();
         if selected {
-            let (fill, border) = selection_colors(theme, desktop);
+            let (fill, border) = icon_selection_colors(theme);
             style.background = Some(fill.into());
             style.border = Border {
                 color: border,
@@ -256,8 +271,10 @@ fn selection_container(
                 radius: 0.0.into(),
             };
         } else if highlighted {
-            // Drag-over / hover: the same wash, weaker, and without the border.
-            let (fill, _) = selection_colors(theme, desktop);
+            // Drag-over / hover: the same tint, weaker, and without the border. The half is
+            // the selection's own alpha, not a second measured value - the reference has no
+            // hover state.
+            let (fill, _) = icon_selection_colors(theme);
             style.background = Some(
                 Color {
                     a: fill.a * 0.5,
@@ -6172,11 +6189,7 @@ impl Tab {
                         widget::container(column)
                             // A little breathing room under the label, inside the border.
                             .padding([0, 0, space_xxxs, 0])
-                            .class(selection_container(
-                                item.selected,
-                                item.highlighted,
-                                matches!(self.mode, Mode::Desktop),
-                            )),
+                            .class(selection_container(item.selected, item.highlighted)),
                     )
                     .width(Length::Fixed(item_width as f32))
                     .height(Length::Fixed(item_height as f32));
@@ -6321,11 +6334,8 @@ impl Tab {
                         // Same as grid_view: the rectangle hugs the content, the outer
                         // container keeps the cell size.
                         let column = widget::container(
-                            widget::container(column).class(selection_container(
-                                item.selected,
-                                item.highlighted,
-                                false,
-                            )),
+                            widget::container(column)
+                                .class(selection_container(item.selected, item.highlighted)),
                         )
                         .width(Length::Fixed(item_width as f32))
                         .height(Length::Fixed(item_height as f32));
