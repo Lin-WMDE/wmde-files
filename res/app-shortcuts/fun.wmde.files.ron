@@ -1,0 +1,241 @@
+// WMDE application shortcuts declaration. See .doc/shortcuts/.
+//
+// The default bindings repeat src/shortcuts.rs; the test
+// `the_declaration_matches_the_code` fails if the two drift apart. The labels
+// live only here: the file manager has no strings of its own for most of these.
+(
+    schema: 1,
+    config: (id: "fun.wmde.files", version: 1, key: "shortcuts_custom"),
+    groups: [
+        (
+            title: { "": "Navigation", "uk": "Навігація" },
+            actions: [
+                (
+                    action: "ItemUp",
+                    label: { "": "Move up", "uk": "Вгору" },
+                    defaults: [(modifiers: [], key: "ArrowUp"), (modifiers: [Shift], key: "ArrowUp")],
+                ),
+                (
+                    action: "ItemDown",
+                    label: { "": "Move down", "uk": "Вниз" },
+                    defaults: [(modifiers: [], key: "ArrowDown"), (modifiers: [Shift], key: "ArrowDown")],
+                ),
+                (
+                    action: "ItemLeft",
+                    label: { "": "Move left", "uk": "Ліворуч" },
+                    defaults: [(modifiers: [], key: "ArrowLeft"), (modifiers: [Shift], key: "ArrowLeft")],
+                ),
+                (
+                    action: "ItemRight",
+                    label: { "": "Move right", "uk": "Праворуч" },
+                    defaults: [(modifiers: [], key: "ArrowRight"), (modifiers: [Shift], key: "ArrowRight")],
+                ),
+                (
+                    action: "ItemPageUp",
+                    label: { "": "Move up a page", "uk": "На сторінку вгору" },
+                    defaults: [(modifiers: [], key: "PageUp"), (modifiers: [Shift], key: "PageUp")],
+                ),
+                (
+                    action: "ItemPageDown",
+                    label: { "": "Move down a page", "uk": "На сторінку вниз" },
+                    defaults: [(modifiers: [], key: "PageDown"), (modifiers: [Shift], key: "PageDown")],
+                ),
+                (
+                    action: "SelectFirst",
+                    label: { "": "Select the first item", "uk": "Вибрати перший елемент" },
+                    defaults: [(modifiers: [], key: "Home"), (modifiers: [Shift], key: "Home")],
+                ),
+                (
+                    action: "SelectLast",
+                    label: { "": "Select the last item", "uk": "Вибрати останній елемент" },
+                    defaults: [(modifiers: [], key: "End"), (modifiers: [Shift], key: "End")],
+                ),
+                (
+                    action: "HistoryPrevious",
+                    label: { "": "Back", "uk": "Назад" },
+                    defaults: [(modifiers: [], key: "Backspace"), (modifiers: [Alt], key: "ArrowLeft")],
+                ),
+                (
+                    action: "HistoryNext",
+                    label: { "": "Forward", "uk": "Уперед" },
+                    defaults: [(modifiers: [Alt], key: "ArrowRight")],
+                ),
+                (
+                    action: "LocationUp",
+                    label: { "": "Parent folder", "uk": "Батьківська тека" },
+                    defaults: [(modifiers: [Alt], key: "ArrowUp")],
+                ),
+                (
+                    action: "EditLocation",
+                    label: { "": "Edit the location", "uk": "Редагувати розташування" },
+                    defaults: [(modifiers: [Ctrl], key: "L")],
+                ),
+                (
+                    action: "SearchActivate",
+                    label: { "": "Search", "uk": "Пошук" },
+                    defaults: [(modifiers: [Ctrl], key: "F")],
+                ),
+            ],
+        ),
+        (
+            title: { "": "Files", "uk": "Файли" },
+            actions: [
+                (
+                    action: "Open",
+                    label: { "": "Open", "uk": "Відкрити" },
+                    defaults: [(modifiers: [], key: "Enter")],
+                ),
+                (
+                    action: "OpenInNewTab",
+                    label: { "": "Open in a new tab", "uk": "Відкрити в новій вкладці" },
+                    defaults: [(modifiers: [Ctrl], key: "Enter")],
+                ),
+                (
+                    action: "OpenInNewWindow",
+                    label: { "": "Open in a new window", "uk": "Відкрити в новому вікні" },
+                    defaults: [(modifiers: [Shift], key: "Enter")],
+                ),
+                (
+                    action: "Preview",
+                    label: { "": "Preview", "uk": "Перегляд" },
+                    defaults: [(modifiers: [Ctrl], key: "Space")],
+                ),
+                (
+                    action: "Gallery",
+                    label: { "": "Gallery", "uk": "Галерея" },
+                    defaults: [(modifiers: [], key: "Space")],
+                ),
+                (
+                    action: "NewFolder",
+                    label: { "": "New folder", "uk": "Нова тека" },
+                    defaults: [(modifiers: [Ctrl, Shift], key: "N")],
+                ),
+                (
+                    action: "Rename",
+                    label: { "": "Rename", "uk": "Перейменувати" },
+                    defaults: [(modifiers: [], key: "F2")],
+                ),
+                (
+                    action: "Copy",
+                    label: { "": "Copy", "uk": "Копіювати" },
+                    defaults: [(modifiers: [Ctrl], key: "C")],
+                ),
+                (
+                    action: "CopyPath",
+                    label: { "": "Copy the path", "uk": "Копіювати шлях" },
+                    defaults: [(modifiers: [Ctrl, Shift], key: "C")],
+                ),
+                (
+                    action: "Cut",
+                    label: { "": "Cut", "uk": "Вирізати" },
+                    defaults: [(modifiers: [Ctrl], key: "X")],
+                ),
+                (
+                    action: "Paste",
+                    label: { "": "Paste", "uk": "Вставити" },
+                    defaults: [(modifiers: [Ctrl], key: "V")],
+                ),
+                (
+                    action: "Delete",
+                    label: { "": "Move to trash", "uk": "Пересунути до смітника" },
+                    defaults: [(modifiers: [], key: "Delete")],
+                ),
+                (
+                    action: "PermanentlyDelete",
+                    label: { "": "Delete permanently", "uk": "Вилучити остаточно" },
+                    defaults: [(modifiers: [Shift], key: "Delete")],
+                ),
+                (
+                    action: "SelectAll",
+                    label: { "": "Select all", "uk": "Вибрати все" },
+                    defaults: [(modifiers: [Ctrl], key: "A")],
+                ),
+                (
+                    action: "AddToSidebar",
+                    label: { "": "Add to the sidebar", "uk": "Додати на бічну панель" },
+                    defaults: [(modifiers: [Ctrl], key: "D")],
+                ),
+            ],
+        ),
+        (
+            title: { "": "Tabs and windows", "uk": "Вкладки та вікна" },
+            actions: [
+                (
+                    action: "TabNew",
+                    label: { "": "New tab", "uk": "Нова вкладка" },
+                    defaults: [(modifiers: [Ctrl], key: "T")],
+                ),
+                (
+                    action: "TabClose",
+                    label: { "": "Close tab", "uk": "Закрити вкладку" },
+                    defaults: [(modifiers: [Ctrl], key: "W")],
+                ),
+                (
+                    action: "TabNext",
+                    label: { "": "Next tab", "uk": "Наступна вкладка" },
+                    defaults: [(modifiers: [Ctrl], key: "Tab")],
+                ),
+                (
+                    action: "TabPrev",
+                    label: { "": "Previous tab", "uk": "Попередня вкладка" },
+                    defaults: [(modifiers: [Ctrl, Shift], key: "Tab")],
+                ),
+                (
+                    action: "WindowNew",
+                    label: { "": "New window", "uk": "Нове вікно" },
+                    defaults: [(modifiers: [Ctrl], key: "N")],
+                ),
+                (
+                    action: "WindowClose",
+                    label: { "": "Close window", "uk": "Закрити вікно" },
+                    defaults: [(modifiers: [Ctrl], key: "Q")],
+                ),
+                (
+                    action: "Settings",
+                    label: { "": "Settings", "uk": "Параметри" },
+                    defaults: [(modifiers: [Ctrl], key: ",")],
+                ),
+            ],
+        ),
+        (
+            title: { "": "View", "uk": "Вигляд" },
+            actions: [
+                (
+                    action: "TabViewList",
+                    label: { "": "List view", "uk": "Перегляд списком" },
+                    defaults: [(modifiers: [Ctrl], key: "1")],
+                ),
+                (
+                    action: "TabViewGrid",
+                    label: { "": "Grid view", "uk": "Перегляд таблицею" },
+                    defaults: [(modifiers: [Ctrl], key: "2")],
+                ),
+                (
+                    action: "ToggleShowHidden",
+                    label: { "": "Show hidden files", "uk": "Показати приховані файли" },
+                    defaults: [(modifiers: [Ctrl], key: "H")],
+                ),
+                (
+                    action: "Reload",
+                    label: { "": "Reload", "uk": "Оновити" },
+                    defaults: [(modifiers: [], key: "F5")],
+                ),
+                (
+                    action: "ZoomIn",
+                    label: { "": "Zoom in", "uk": "Збільшити" },
+                    defaults: [(modifiers: [Ctrl], key: "+"), (modifiers: [Ctrl], key: "=")],
+                ),
+                (
+                    action: "ZoomOut",
+                    label: { "": "Zoom out", "uk": "Зменшити" },
+                    defaults: [(modifiers: [Ctrl], key: "-")],
+                ),
+                (
+                    action: "ZoomDefault",
+                    label: { "": "Default size", "uk": "Стандартний розмір" },
+                    defaults: [(modifiers: [Ctrl], key: "0")],
+                ),
+            ],
+        ),
+    ],
+)

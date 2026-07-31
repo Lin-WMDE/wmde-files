@@ -8770,6 +8770,7 @@ dependencies = [
  "procfs",
  "recently-used-xbel",
  "regex",
+ "ron 0.11.0",
  "roxmltree",
  "rust-embed",
  "rustc-hash 2.1.3",

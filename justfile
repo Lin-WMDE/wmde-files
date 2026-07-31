@@ -23,6 +23,10 @@ desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / desktop
 metainfo := APPID + '.metainfo.xml'
 metainfo-src := 'target/xdgen' / metainfo
 metainfo-dst := clean(rootdir / prefix) / 'share' / 'metainfo' / metainfo
+# The key bindings the file manager handles itself, read by the settings app.
+shortcuts := APPID + '.ron'
+shortcuts-src := 'res' / 'app-shortcuts' / shortcuts
+shortcuts-dst := clean(rootdir / prefix) / 'share' / 'wmde' / 'app-shortcuts' / shortcuts
 
 icons-src := 'res' / 'icons' / 'hicolor'
 icons-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor'
@@ -95,6 +99,7 @@ install:
     install -Dm0755 {{applet-src}} {{applet-dst}}
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
     install -Dm0644 {{metainfo-src}} {{metainfo-dst}}
+    install -Dm0644 {{shortcuts-src}} {{shortcuts-dst}}
     for size in `ls {{icons-src}}`; do \
         install -Dm0644 "{{icons-src}}/$size/apps/{{APPID}}.svg" "{{icons-dst}}/$size/apps/{{APPID}}.svg"; \
     done
