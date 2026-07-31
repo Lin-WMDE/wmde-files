@@ -132,6 +132,26 @@ wgpu = ["libcosmic/wgpu"]
 [profile.dev]
 opt-level = 1
 
+# WMDE: shared release profile for the whole stack.
+#
+# The binary is ~44 MB, of which 28 MB is .text - libcosmic and iced are generic-heavy and
+# every widget instantiation gets its own copy of the code. Resident text pages are the
+# largest single item in a running application's memory, and this profile attacks all of it:
+#
+#  - panic = "abort" drops .eh_frame and .gcc_except_table entirely (5 MB here). The cost is
+#    that std::panic::catch_unwind stops catching; in this stack it guards SVG parsing in
+#    iced's wgpu and tiny_skia vector backends, so a malformed icon aborts instead of
+#    rendering nothing. wmde-applets, wmde-osd and wmde-settings have shipped this way for
+#    a while, including the most icon-heavy application of the set.
+#  - lto = "fat" and codegen-units = 1 let the linker see every crate at once and drop what
+#    monomorphisation duplicated. Both cost build time; that is the trade.
+#
+# opt-level is deliberately not set here: tuning it per crate is a separate, later step.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
 [profile.release-with-debug]
 inherits = "release"
 debug = true
