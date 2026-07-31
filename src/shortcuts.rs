@@ -289,6 +289,23 @@ mod tests {
     }
 
     #[test]
+    fn every_default_key_is_spelled_the_way_capture_spells_it() {
+        // A captured key comes back upper case for single latin letters. A default
+        // spelled any other way could not be replaced by a user binding: the two
+        // would sit side by side in the map and both fire.
+        for (binding, action) in fallback_shortcuts().iter() {
+            let key = cosmic::shortcuts::key_from_string(&binding.key)
+                .unwrap_or_else(|| panic!("{action:?}: key {:?} does not resolve", binding.key));
+            let spelled = cosmic::shortcuts::key_to_string(&key)
+                .unwrap_or_else(|| panic!("{action:?}: key {:?} has no spelling", binding.key));
+            assert_eq!(
+                binding.key, spelled,
+                "{action:?}: a captured key would be stored as {spelled:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_mode_only_gets_what_it_can_do() {
         let app = binds(&tab::Mode::App);
         let desktop = binds(&tab::Mode::Desktop);
