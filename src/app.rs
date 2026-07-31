@@ -1730,7 +1730,20 @@ impl App {
         }
     }
 
+    /// Rebuilds the bindings from the configuration, so that a shortcut edited in
+    /// the settings app takes effect in a window that is already open.
+    fn update_key_binds(&mut self) {
+        self.key_binds = key_binds(
+            &match self.mode {
+                Mode::App => tab::Mode::App,
+                Mode::Desktop => tab::Mode::Desktop,
+            },
+            &crate::shortcuts::shortcuts_config(self.config.shortcuts_custom.clone()),
+        );
+    }
+
     fn update_config(&mut self) -> Task<Message> {
+        self.update_key_binds();
         self.update_nav_model();
         // Tabs are collected first to placate the borrowck
         let tabs: Box<[_]> = self.tab_model.iter().collect();
@@ -2686,10 +2699,15 @@ impl Application for App {
 
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
 
-        let key_binds = key_binds(&match flags.mode {
-            Mode::App => tab::Mode::App,
-            Mode::Desktop => tab::Mode::Desktop,
-        });
+        let shortcuts_config =
+            crate::shortcuts::shortcuts_config(flags.config.shortcuts_custom.clone());
+        let key_binds = key_binds(
+            &match flags.mode {
+                Mode::App => tab::Mode::App,
+                Mode::Desktop => tab::Mode::Desktop,
+            },
+            &shortcuts_config,
+        );
 
         // Create a dedicated thread for the compio runtime to handle operations on.
         // Supports io_uring on Linux, IOPC on Windows, and polling everywhere else.

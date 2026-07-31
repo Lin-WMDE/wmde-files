@@ -1201,7 +1201,10 @@ impl Application for App {
         tab.sort_name = tab::HeadingOptions::Modified;
         tab.sort_direction = false;
 
-        let key_binds = key_binds(&tab.mode);
+        let key_binds = key_binds(
+            &tab.mode,
+            &crate::shortcuts::shortcuts_config(flags.config.shortcuts_custom.clone()),
+        );
 
         let mut app = Self {
             core,

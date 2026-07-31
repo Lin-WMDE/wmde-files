@@ -31,6 +31,7 @@ mod mouse_area;
 #[cfg(feature = "gvfs")]
 mod network_discovery;
 pub mod operation;
+pub mod shortcuts;
 mod sidebar;
 mod spawn_detached;
 pub mod tab;

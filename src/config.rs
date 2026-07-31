@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::FxOrderMap;
 use crate::app::App;
+use crate::shortcuts::Shortcuts;
 use crate::tab::{HeadingOptions, Location, View};
 
 pub use crate::context_action::{ContextActionPreset, ContextActionSelection};
@@ -174,6 +175,8 @@ pub struct Config {
     pub favorites: Vec<Favorite>,
     pub show_details: bool,
     pub show_recents: bool,
+    /// Key bindings the user changed, layered over `shortcuts::fallback_shortcuts`.
+    pub shortcuts_custom: Shortcuts,
     pub tab: TabConfig,
     pub type_to_search: TypeToSearch,
 }
@@ -239,6 +242,7 @@ impl Default for Config {
             ],
             show_details: false,
             show_recents: true,
+            shortcuts_custom: Shortcuts::new(),
             tab: TabConfig::default(),
             type_to_search: TypeToSearch::Recursive,
         }
