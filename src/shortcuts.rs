@@ -288,6 +288,48 @@ mod tests {
         }
     }
 
+    /// The global actions the application declares, in the shape `xdgen` writes
+    /// them: it drops the blank lines between groups, which the desktop entry
+    /// specification allows but which a reader could still trip over.
+    #[cfg(feature = "desktop")]
+    #[test]
+    fn the_declared_global_actions_are_readable() {
+        use cosmic::desktop::fde::{DesktopEntry, get_languages_from_env};
+
+        let generated = std::path::Path::new("target/xdgen/fun.wmde.files.desktop");
+        let Ok(text) = std::fs::read_to_string(generated) else {
+            panic!("build.rs has to have written {}", generated.display());
+        };
+
+        let locales = get_languages_from_env();
+        let entry = DesktopEntry::from_str(generated, &text, Some(&locales))
+            .expect("the generated desktop entry has to parse");
+
+        // The trailing separator the specification asks for comes back as an empty
+        // name, so a reader has to drop it rather than look it up.
+        let raw: Vec<_> = entry.actions().into_iter().flatten().collect();
+        assert_eq!(raw, ["new-window", "trash", "network", ""]);
+
+        let actions: Vec<_> = raw.into_iter().filter(|name| !name.is_empty()).collect();
+        for action in actions {
+            assert!(
+                entry.action_entry(action, "Exec").is_some(),
+                "action {action} has no command to run"
+            );
+            assert!(
+                entry
+                    .action_entry_localized(action, "Name", &locales)
+                    .is_some(),
+                "action {action} has no name to show"
+            );
+        }
+
+        assert_eq!(
+            entry.action_entry("trash", "Exec"),
+            Some("wmde-files --trash")
+        );
+    }
+
     #[test]
     fn every_default_key_is_spelled_the_way_capture_spells_it() {
         // A captured key comes back upper case for single latin letters. A default

@@ -9,3 +9,19 @@ Icon=fun.wmde.files
 Categories=WMDE;Utility;FileManager;
 Keywords=Folder;Manager;
 MimeType=inode/directory;
+Actions=new-window;trash;network;
+
+[Desktop Action new-window]
+Name=New Window
+Name[uk]=Нове вікно
+Exec=wmde-files
+
+[Desktop Action trash]
+Name=Trash
+Name[uk]=Смітник
+Exec=wmde-files --trash
+
+[Desktop Action network]
+Name=Network
+Name[uk]=Мережа
+Exec=wmde-files --network
