@@ -86,7 +86,9 @@ const THUMBNAIL_SIZE: u32 = (ICON_SIZE_GRID as u32) * (ICON_SCALE_MAX as u32);
 /// wmde-files from 45 MB to 153 MB. The cap is what can be displayed plus room to spare,
 /// not what can be read.
 const TEXT_PREVIEW_MAX_BYTES: usize = 4 * 1024; // 4 KiB
-/// Lines kept for the preview. Guards against a file whose first 4 KiB are one long line.
+/// Lines kept for the preview. Bounds a file of many short lines, where 4 KiB is far more
+/// text than the tile can show. A file whose first 4 KiB hold no line break is bounded by
+/// the byte cap above instead - this one never fires for it.
 const TEXT_PREVIEW_MAX_LINES: usize = 32;
 /// Maximum file size (bytes) to attempt text preview; files larger than this are skipped entirely.
 const TEXT_PREVIEW_MAX_FILE_BYTES: u64 = 8 * 1000 * 1000; // 8 MiB
