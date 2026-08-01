@@ -132,12 +132,6 @@ pub fn desktop() -> Result<(), Box<dyn std::error::Error>> {
 /// Runs application with these settings
 #[rustfmt::skip]
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // First statement on purpose. Scanning the installed fonts takes tens of milliseconds
-    // and the first piece of text waits for it, so it has to overlap with everything below
-    // rather than start after it. libcosmic starts it again inside `run`, which is too late
-    // by the whole of localization and configuration loading.
-    cosmic::font::prewarm();
-
     let log_format = tracing_subscriber::fmt::format()
         .pretty()
         .with_line_number(true)
@@ -212,6 +206,14 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    // As early as possible, but NOT before the fork above. Scanning the installed fonts
+    // takes tens of milliseconds on a thread of its own and the first piece of text waits
+    // for it, so the sooner it starts the sooner the window appears. `fork` copies only the
+    // calling thread, though: a scan already in flight leaves the child holding a lock whose
+    // owner does not exist there, and the child then waits for it forever. Started here, the
+    // thread only ever exists in the process that goes on to draw.
+    cosmic::font::prewarm();
 
     let mut settings = Settings::default();
     settings = settings.theme(config.app_theme.theme());
