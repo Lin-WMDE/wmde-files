@@ -79,7 +79,15 @@ const MAX_SEARCH_RESULTS: usize = 200;
 const THUMBNAIL_SIZE: u32 = (ICON_SIZE_GRID as u32) * (ICON_SCALE_MAX as u32);
 /// Maximum bytes of text to pass to the editor for preview; caps shaping work to avoid blocking.
 /// Files larger than this get a truncated preview (first N bytes only).
-const TEXT_PREVIEW_MAX_BYTES: usize = 256 * 1024; // 256 KiB
+///
+/// The tile is `THUMBNAIL_SIZE` square and shows a dozen short lines at most, but the
+/// preview is a real `text_editor::Content` - a full editor buffer, shaped. It cost about
+/// 420 bytes of resident memory per byte of text: one 256 KiB file in a directory took
+/// wmde-files from 45 MB to 153 MB. The cap is what can be displayed plus room to spare,
+/// not what can be read.
+const TEXT_PREVIEW_MAX_BYTES: usize = 4 * 1024; // 4 KiB
+/// Lines kept for the preview. Guards against a file whose first 4 KiB are one long line.
+const TEXT_PREVIEW_MAX_LINES: usize = 32;
 /// Maximum file size (bytes) to attempt text preview; files larger than this are skipped entirely.
 const TEXT_PREVIEW_MAX_FILE_BYTES: u64 = 8 * 1000 * 1000; // 8 MiB
 
@@ -2304,8 +2312,14 @@ impl ItemThumbnail {
                                     .to_string()
                             }
                         };
-                        if !text.is_empty() {
-                            return Self::Text(widget::text_editor::Content::with_text(&text));
+                        // Cut to the lines the tile can actually show. Every line handed to
+                        // the editor is shaped and kept, whether or not it is ever drawn.
+                        let head = match text.match_indices('\n').nth(TEXT_PREVIEW_MAX_LINES - 1) {
+                            Some((end, _)) => &text[..end],
+                            None => text.as_str(),
+                        };
+                        if !head.is_empty() {
+                            return Self::Text(widget::text_editor::Content::with_text(head));
                         }
                     }
                     Err(err) => {

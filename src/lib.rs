@@ -132,6 +132,12 @@ pub fn desktop() -> Result<(), Box<dyn std::error::Error>> {
 /// Runs application with these settings
 #[rustfmt::skip]
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // First statement on purpose. Scanning the installed fonts takes tens of milliseconds
+    // and the first piece of text waits for it, so it has to overlap with everything below
+    // rather than start after it. libcosmic starts it again inside `run`, which is too late
+    // by the whole of localization and configuration loading.
+    cosmic::font::prewarm();
+
     let log_format = tracing_subscriber::fmt::format()
         .pretty()
         .with_line_number(true)
