@@ -931,13 +931,10 @@ impl App {
 
         for favorite in &self.flags.config.favorites {
             if let Some(path) = favorite.path_opt() {
-                let name = if matches!(favorite, Favorite::Home) {
-                    fl!("home")
-                } else if let Favorite::Network { name, .. } = favorite {
-                    name.clone()
-                } else if let Some(file_name) = path.file_name().and_then(|x| x.to_str()) {
-                    file_name.to_string()
-                } else {
+                // 1.7 moved this naming into Favorite::display_name, which also honours the
+                // custom sidebar labels it added; the dialog sidebar reads them the same way
+                // the main window does.
+                let Some(name) = favorite.display_name() else {
                     continue;
                 };
                 let ic = if path.is_dir() {
