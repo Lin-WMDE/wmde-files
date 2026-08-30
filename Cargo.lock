@@ -8728,7 +8728,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "wmde-files"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "atomic_float",
@@ -8799,7 +8799,7 @@ dependencies = [
 
 [[package]]
 name = "wmde-files-applet"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "log",
  "wmde-files",
