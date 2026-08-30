@@ -4792,15 +4792,21 @@ impl Application for App {
                                 )));
                             } else if let Some((_key, mounter)) = MOUNTERS.iter().next() {
                                 let nav_uri = uri.clone();
-                                commands.push(mounter.network_drive(uri).map(move |()| {
-                                    cosmic::Action::App(Message::TabMessage(
-                                        None,
-                                        tab::Message::Location(Location::Network(
-                                            nav_uri.clone(),
-                                            name.clone(),
+                                // 1.6 made the mount report whether it succeeded, so a failed
+                                // mount no longer navigates into a location that is not there.
+                                commands.push(mounter.network_drive(uri).map(move |mounted| {
+                                    if mounted {
+                                        cosmic::Action::App(Message::TabMessage(
                                             None,
-                                        )),
-                                    ))
+                                            tab::Message::Location(Location::Network(
+                                                nav_uri.clone(),
+                                                name.clone(),
+                                                None,
+                                            )),
+                                        ))
+                                    } else {
+                                        cosmic::action::none()
+                                    }
                                 }));
                             }
                         }
