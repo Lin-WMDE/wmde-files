@@ -33,9 +33,7 @@ use crate::app::{
     Action, ContextPage, Message as AppMessage, PreviewItem, PreviewKind, REPLACE_BUTTON_ID,
     wmde_fs_usage,
 };
-use crate::config::{
-    Config, DialogConfig, Favorite, TIME_CONFIG_ID, ThumbCfg, TimeConfig, TypeToSearch,
-};
+use crate::config::{Config, DialogConfig, TIME_CONFIG_ID, ThumbCfg, TimeConfig, TypeToSearch};
 use crate::key_bind::key_binds;
 use crate::localize::LANGUAGE_SORTER;
 use crate::mounter::{MOUNTERS, MounterItem, MounterItems, MounterKey, MounterMessage};
@@ -1042,13 +1040,7 @@ impl App {
 
         for favorite in &self.flags.config.favorites {
             if let Some(path) = favorite.path_opt() {
-                let name = if matches!(favorite, Favorite::Home) {
-                    fl!("home")
-                } else if let Favorite::Network { name, .. } = favorite {
-                    name.clone()
-                } else if let Some(file_name) = path.file_name().and_then(|x| x.to_str()) {
-                    file_name.to_string()
-                } else {
+                let Some(name) = favorite.display_name() else {
                     continue;
                 };
                 nav_model = nav_model.insert(move |b| {
