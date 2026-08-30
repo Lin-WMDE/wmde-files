@@ -1,3 +1,10 @@
+appearance = Aparéncia
+theme = Tèma
+match-desktop = Assortir al burèu
+dark = Fosc
+light = Clar
+file = Fichièr
+
 # WMDE additions (Win11-style chrome)
 search = Recercar
 search-placeholder = Recercar dins { $name }

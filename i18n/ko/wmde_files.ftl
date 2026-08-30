@@ -102,7 +102,7 @@ view = 보기
 grid-view = 그리드 보기
 list-view = 목록 보기
 menu-settings = 설정...
-menu-about = WMDE Files 정보...
+menu-about = WMDE 파일 정보...
 connect = 연결
 read-execute = 읽기 및 실행
 item-modified = 마지막 수정 일자: { $modified }
@@ -278,6 +278,15 @@ move-to-button-label = 이동
 clear-recents-history = 최근 기록 비우기
 copy-path = 복사 경로
 move-to-title = 이동 위치 선택
+copy-to-title = 복사 경로 선택
+run = 실행
+rename-confirm = 이름 변경
+mixed = 혼합됨
+pasted-image = 붙여넣은 이미지
+pasted-text = 붙여넣은 텍스트
+pasted-video = 붙여넣은 영상
+copy-to = 복사하기...
+move-to = 이동하기...
 
 # WMDE additions (Win11-style chrome)
 search = 검색

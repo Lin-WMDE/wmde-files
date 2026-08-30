@@ -736,7 +736,7 @@ impl Mounter for Gvfs {
         )
     }
 
-    fn network_drive(&self, uri: String) -> Task<()> {
+    fn network_drive(&self, uri: String) -> Task<bool> {
         let command_tx = self.command_tx.clone();
         Task::perform(
             async move {
@@ -745,9 +745,15 @@ impl Mounter for Gvfs {
                 command_tx.send(Cmd::NetworkDrive(uri, res_tx)).unwrap();
                 res_rx.await
             },
-            |x| {
-                if let Err(err) = x {
+            |result| match result {
+                Ok(Ok(())) => true,
+                Ok(Err(err)) => {
                     log::error!("{err:?}");
+                    false
+                }
+                Err(err) => {
+                    log::error!("{err:?}");
+                    false
                 }
             },
         )

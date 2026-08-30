@@ -225,7 +225,7 @@ settings = Asetukset
 
 appearance = Ulkoasu
 theme = Teema
-match-desktop = Sovita työpöytään
+match-desktop = Sama kuin työpöytä
 dark = Tumma
 light = Vaalea
 
@@ -283,7 +283,7 @@ show-hidden-files = Näytä piilotetut tiedostot
 list-directories-first = Näytä kansiot ensin
 gallery-preview = Gallerian esikatselu
 menu-settings = Asetukset…
-menu-about = Tietoa WMDE Filesista…
+menu-about = Tietoa WMDEin tiedostonhallinnasta…
 
 ## Sort
 
@@ -415,6 +415,9 @@ context-action-confirm-warning =
     }.
 run = Suorita
 rename-confirm = Nimeä uudelleen
+checksum = { $kind }-tarkistussumma
+calculate = Laske
+error = Virhe
 
 # WMDE additions (Win11-style chrome)
 search = Haku

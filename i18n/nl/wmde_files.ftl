@@ -394,7 +394,7 @@ show-hidden-files = Verborgen bestanden tonen
 list-directories-first = Mappen bovenaan weergeven
 gallery-preview = Galerijweergave
 menu-settings = Instellingen…
-menu-about = Over WMDE Files…
+menu-about = Over WMDE Bestanden…
 
 ## Sort
 
@@ -425,7 +425,7 @@ removed-from-recents =
     } uit { recents } verwijderd
 remove-from-recents = Uit recente verwijderen
 type-to-search-select = Dit selecteert het eerst overeenkomende bestand of map
-comment = Bestandsbeheerder voor WMDE desktop
+comment = Bestandsbeheerder voor WMDE
 copy-to-title = Kopieerbestemming aanwijzen
 copy-to-button-label = Kopiëren
 move-to-button-label = Verplaatsen
