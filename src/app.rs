@@ -2729,7 +2729,10 @@ impl Application for App {
         );
 
         // Create a dedicated thread for the compio runtime to handle operations on.
-        // Supports io_uring on Linux, IOPC on Windows, and polling everywhere else.
+        // WMDE builds it without the `io-uring` feature, so this runs on the polling
+        // driver: a thread parked in `io_uring_enter` gets the CPU it sleeps on booked
+        // as iowait for as long as it waits, and this thread waits forever. See the
+        // feature comment in Cargo.toml.
         let (compio_tx, mut compio_rx) = mpsc::channel(1);
         let tokio_handle = tokio::runtime::Handle::current();
         std::thread::spawn(move || {

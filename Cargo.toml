@@ -72,7 +72,8 @@ atomic_float = "1.1.0"
 num_enum = "0.7.6"
 bstr = "1.12.1"
 
-# Completion-based IO runtime to enable io_uring / IOCP file IO support.
+# Completion-based IO runtime for file operations. Drives the copy loop in
+# `operation/recursive.rs`; on our builds through its polling driver, see `io-uring` below.
 [dependencies.compio]
 version = "0.18"
 default-features = false
@@ -113,7 +114,6 @@ default = [
     "dbus-config",
     "desktop",
     "gvfs",
-    "io-uring",
     "lzma-rust2",
     "notify",
     "wayland",
@@ -123,6 +123,13 @@ dbus-config = ["libcosmic/dbus-config"]
 desktop = ["libcosmic/desktop", "dep:cosmic-mime-apps", "dep:xdg"]
 desktop-applet = []
 gvfs = ["dep:gio", "dep:glib"]
+# WMDE: off by default. The compio runtime thread is created at startup and parks in
+# `io_uring_enter` for the life of the process; since Linux 6.4 that wait goes through
+# `io_schedule()`, which flags the sleeping CPU as waiting on IO. Every idle tick on that
+# core is then booked as iowait instead of idle, so every WMDE session shows one core
+# pegged at 100% from login on. The rings buy nothing here: the only user is the 128 KiB
+# copy loop in `operation/recursive.rs`, which is bound by the disk, not by syscall
+# overhead. Without this the same calls run on compio's polling driver and its thread pool.
 io-uring = ["compio/io-uring"]
 jemalloc = ["dep:tikv-jemallocator"]
 notify = ["dep:notify-rust"]
