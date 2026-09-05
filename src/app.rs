@@ -450,6 +450,7 @@ pub enum Message {
     // WMDE: the operations window.
     OperationsCloseRequested,
     OperationsCancelAll,
+    WindowCloseRequest(window::Id),
     OperationsKeepGoing,
     PendingCancel(u64),
     PendingCancelAll,
@@ -1557,13 +1558,11 @@ impl App {
                     // Remove the tab from the tab model
                     self.tab_model.remove(entity);
                 }
-                WindowKind::Operations => {
-                    // Only if this is still the current one: a close event for a window that
-                    // has already been replaced would otherwise disown its successor.
-                    if self.operations_window == Some(*id) {
-                        self.operations_window = None;
-                        self.operations_confirm_cancel = false;
-                    }
+                // Only if this is still the current one: a close event for a window that has
+                // already been replaced would otherwise disown its successor.
+                WindowKind::Operations if self.operations_window == Some(*id) => {
+                    self.operations_window = None;
+                    self.operations_confirm_cancel = false;
                 }
                 _ => {}
             }
@@ -2804,7 +2803,12 @@ impl App {
             return Task::none();
         }
 
-        let (id, task) = window::open(OPERATIONS_WINDOW.settings(DIALOG_APP_ID));
+        let mut settings = OPERATIONS_WINDOW.settings(DIALOG_APP_ID);
+        // Without this the toolkit closes the window itself on a compositor close request and
+        // the application is only told afterwards, so Alt+F4 would walk straight past the
+        // question the close button asks.
+        settings.exit_on_close_request = false;
+        let (id, task) = window::open(settings);
         self.windows.insert(id, Window::new(WindowKind::Operations));
         self.operations_window = Some(id);
         self.operations_confirm_cancel = false;
@@ -3697,11 +3701,10 @@ impl Application for App {
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<Self::Message> {
-        // WMDE: the operations window answers for itself - Alt+F4 has to ask the same
-        // question the close button does, or the shortcut becomes a way around it.
-        if self.operations_window == Some(id) {
-            return Some(Message::OperationsCloseRequested);
-        }
+        // WMDE: this fires from `Action::SurfaceClosed`, after the window is already gone -
+        // it reports a close, it cannot refuse one. The operations window asks its question
+        // from `Message::WindowCloseRequest` instead, which is delivered while the window
+        // still exists because its settings carry `exit_on_close_request: false`.
         Some(Message::WindowCloseRequested(id))
     }
 
@@ -5943,6 +5946,16 @@ impl Application for App {
             Message::WindowCloseRequested(id) => {
                 self.remove_window(&id);
             }
+            Message::WindowCloseRequest(id) => {
+                // WMDE: a close asked for while the window is still alive. The operations
+                // window turns it into the question; everything else keeps the old behaviour
+                // of closing the main window.
+                if self.operations_window == Some(id) {
+                    self.operations_confirm_cancel = true;
+                } else {
+                    return self.update(Message::WindowClose);
+                }
+            }
             Message::WindowDrag(id) => {
                 return self.core.drag(Some(id));
             }
@@ -7835,7 +7848,11 @@ impl Application for App {
                 Event::Window(WindowEvent::Focused) => Some(Message::Focused(window_id)),
                 #[cfg(not(all(feature = "wayland", feature = "desktop-applet")))]
                 Event::Window(WindowEvent::Focused) => Some(Message::CheckClipboard),
-                Event::Window(WindowEvent::CloseRequested) => Some(Message::WindowClose),
+                // WMDE: carries the id. Only windows opened with `exit_on_close_request:
+                // false` ever deliver this - for the rest the toolkit closes them itself.
+                Event::Window(WindowEvent::CloseRequested) => {
+                    Some(Message::WindowCloseRequest(window_id))
+                }
                 Event::Window(WindowEvent::Opened { position: _, size }) => {
                     Some(Message::Size(window_id, size))
                 }
