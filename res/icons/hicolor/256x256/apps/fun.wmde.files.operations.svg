@@ -1,0 +1,10 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="96" y="21" width="128" height="160" rx="16" fill="#00717C"/>
+<rect x="32" y="75" width="128" height="160" rx="16" fill="url(#sheet)"/>
+<defs>
+<linearGradient id="sheet" x1="160" y1="75" x2="32" y2="235" gradientUnits="userSpaceOnUse">
+<stop stop-color="#49BAC8"/>
+<stop offset="1" stop-color="#05919F"/>
+</linearGradient>
+</defs>
+</svg>

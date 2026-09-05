@@ -1,0 +1,15 @@
+# WMDE: the file operations window runs under its own app id, so the panel gives it its own
+# button, its own icon and the progress bar of the operation it is showing. Without an entry
+# under this exact name the applet cannot find one, falls back to a synthetic entry whose icon
+# name is the app id, and the theme substitutes a generic one.
+# NoDisplay keeps it out of menus: it is a window of the file manager, not a program to launch.
+[Desktop Entry]
+Name=File operations
+Name[uk]=Файлові операції
+Comment=Progress of the running file operations
+Comment[uk]=Хід виконання файлових операцій
+Exec=wmde-files
+Terminal=false
+Type=Application
+NoDisplay=true
+Icon=fun.wmde.files.operations

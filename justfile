@@ -28,8 +28,15 @@ shortcuts := APPID + '.ron'
 shortcuts-src := 'res' / 'app-shortcuts' / shortcuts
 shortcuts-dst := clean(rootdir / prefix) / 'share' / 'wmde' / 'app-shortcuts' / shortcuts
 
+# WMDE: the secondary windows run under their own app ids, and the panel needs an entry under
+# each to find an icon. Static, unlike the main entry, which xdgen generates.
+window-desktops := APPID + '.dialog.desktop ' + APPID + '.operations.desktop'
+applications-dst := clean(rootdir / prefix) / 'share' / 'applications'
+
 icons-src := 'res' / 'icons' / 'hicolor'
 icons-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor'
+# WMDE: icon of the file operations window, alongside the icon of the manager itself.
+operations-icon := APPID + '.operations'
 
 # Default recipe which runs `just build-release`
 default: build-release
@@ -100,8 +107,12 @@ install:
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
     install -Dm0644 {{metainfo-src}} {{metainfo-dst}}
     install -Dm0644 {{shortcuts-src}} {{shortcuts-dst}}
+    for entry in {{window-desktops}}; do \
+        install -Dm0644 "res/$entry" "{{applications-dst}}/$entry"; \
+    done
     for size in `ls {{icons-src}}`; do \
         install -Dm0644 "{{icons-src}}/$size/apps/{{APPID}}.svg" "{{icons-dst}}/$size/apps/{{APPID}}.svg"; \
+        install -Dm0644 "{{icons-src}}/$size/apps/{{operations-icon}}.svg" "{{icons-dst}}/$size/apps/{{operations-icon}}.svg"; \
     done
 
 # Installs applet files

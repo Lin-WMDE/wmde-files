@@ -17,7 +17,10 @@ use zbus::zvariant::Value;
 
 /// The desktop file id, suffix included - that is how libunity builds the uri and how every
 /// receiver expects it. Receivers strip the suffix themselves.
-const APP_URI: &str = "application://fun.wmde.files.desktop";
+// The bar belongs to the window that shows the operation, not to the file manager as a
+// whole: the applet pairs this key with the app id of a toplevel, and the operations
+// window carries `OPERATIONS_APP_ID`.
+const APP_URI: &str = "application://fun.wmde.files.operations.desktop";
 
 /// libunity puts the object at `/com/canonical/unity/launcherentry/<g_str_hash(uri)>`. Every
 /// known receiver subscribes with no path filter, so the exact value only matters to somebody
@@ -139,18 +142,16 @@ async fn emit(conn: &Connection, update: Update) -> zbus::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use cosmic::Application;
-
     use super::APP_URI;
 
     #[test]
-    fn app_uri_matches_the_application_id() {
-        // The receiver keys the bar by desktop id. A uri that stops matching `App::APP_ID`
-        // paints the progress on somebody else's button, or on none at all, and nothing else
-        // would report it.
+    fn app_uri_matches_the_operations_window() {
+        // The receiver keys the bar by desktop id and pairs it with the app id of a toplevel.
+        // A uri that stops matching the window paints the progress on somebody else's button,
+        // or on none at all, and nothing else would report it.
         assert_eq!(
             APP_URI,
-            format!("application://{}.desktop", crate::app::App::APP_ID)
+            format!("application://{}.desktop", crate::app::OPERATIONS_APP_ID)
         );
     }
 }

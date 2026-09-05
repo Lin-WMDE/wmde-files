@@ -98,6 +98,14 @@ const VIEW_OPTIONS_WINDOW: WindowPreset =
 const PREVIEW_WINDOW: WindowPreset =
     WindowPreset::utility(Size::new(480.0, 600.0), Size::new(360.0, 180.0));
 
+/// WMDE: app id of the file operations window.
+///
+/// Its own, not `DIALOG_APP_ID`: the panel groups and paints by app id, so this is what earns
+/// the window its own button, its own icon (`res/fun.wmde.files.operations.desktop`) and the
+/// progress bar of the operation it is showing. Adding an app id means four places - the
+/// entry, the icon, this constant, and the tiling exception in wmde-comp.
+pub const OPERATIONS_APP_ID: &str = "fun.wmde.files.operations";
+
 /// WMDE: shape of the file operations window. Resizable, because a second copy started while
 /// the first one runs adds a row rather than a window; no maximize, because there is nothing
 /// there to fill a screen with.
@@ -2801,7 +2809,7 @@ impl App {
             return Task::none();
         }
 
-        let mut settings = OPERATIONS_WINDOW.settings(DIALOG_APP_ID);
+        let mut settings = OPERATIONS_WINDOW.settings(OPERATIONS_APP_ID);
         // Without this the toolkit closes the window itself on a compositor close request and
         // the application is only told afterwards, so Alt+F4 would walk straight past the
         // question the close button asks.

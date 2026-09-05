@@ -1,0 +1,12 @@
+# WMDE: the app id of the secondary windows of the file manager - the preview window and the
+# desktop view options. They are companions of the main window and carry its icon; the entry
+# exists only so the panel has one to find. See fun.wmde.files.operations.desktop for the
+# window that earned an identity of its own.
+[Desktop Entry]
+Name=WMDE Files
+Comment=File manager for the WMDE desktop
+Exec=wmde-files
+Terminal=false
+Type=Application
+NoDisplay=true
+Icon=fun.wmde.files
