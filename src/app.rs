@@ -73,8 +73,8 @@ use crate::mounter::{
     MOUNTERS, MounterAuth, MounterItem, MounterItems, MounterKey, MounterMessage,
 };
 use crate::operation::{
-    Controller, Operation, OperationError, OperationErrorType, OperationSelection, ReplaceResult,
-    copy_unique_path,
+    Controller, Counts, Operation, OperationError, OperationErrorType, OperationSelection,
+    ReplaceResult, copy_unique_path,
 };
 use crate::sidebar;
 use crate::spawn_detached::spawn_detached;
@@ -97,6 +97,16 @@ const VIEW_OPTIONS_WINDOW: WindowPreset =
 /// Shape of the preview window.
 const PREVIEW_WINDOW: WindowPreset =
     WindowPreset::utility(Size::new(480.0, 600.0), Size::new(360.0, 180.0));
+
+/// WMDE: shape of the file operations window. Resizable, because a second copy started while
+/// the first one runs adds a row rather than a window; no maximize, because there is nothing
+/// there to fill a screen with.
+const OPERATIONS_WINDOW: WindowPreset =
+    WindowPreset::utility(Size::new(520.0, 260.0), Size::new(380.0, 160.0));
+
+/// WMDE: how long an operation has to run before it is worth a window of its own. Copying a
+/// single small file finishes well inside this, and the window never appears.
+const OPERATIONS_WINDOW_DELAY: Duration = Duration::from_millis(500);
 
 /// Scrollable body of a framed secondary window. The frame paints the background.
 fn window_body<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
@@ -437,10 +447,13 @@ pub enum Message {
     CheckClipboardText,
     RetryCheckClipboard(ClipboardCache),
     ClipboardCached(ClipboardCache),
+    // WMDE: the operations window.
+    OperationsCloseRequested,
+    OperationsCancelAll,
+    OperationsKeepGoing,
     PendingCancel(u64),
     PendingCancelAll,
     PendingComplete(u64, OperationSelection),
-    PendingDismiss,
     PendingError(u64, OperationError),
     PendingResults(Vec<(u64, OperationSelection)>, Vec<(u64, OperationError)>),
     PendingPause(u64, bool),
@@ -708,6 +721,8 @@ pub enum WindowKind {
     DesktopViewOptions,
     Dialogs(widget::Id),
     FileDialog(Option<Box<[PathBuf]>>),
+    /// WMDE: progress of the running file operations. Replaces the upstream window footer.
+    Operations,
     Preview(Option<Entity>, PreviewKind),
 }
 
@@ -792,6 +807,14 @@ pub struct App {
     progress_operations: BTreeSet<u64>,
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, Controller, String)>,
+    // WMDE: the operations window, and whether it is currently asking to confirm a cancel.
+    operations_window: Option<window::Id>,
+    operations_confirm_cancel: bool,
+    // WMDE: when the first operation worth a window started. The window waits out
+    // `OPERATIONS_WINDOW_DELAY` before appearing, so a copy of one small file never gets one.
+    operations_since: Option<Instant>,
+    // WMDE: rate estimate per operation id, fed by the 100 ms tick.
+    operation_rates: FxHashMap<u64, RateState>,
     // WMDE: progress broadcaster for the panel. `None` in `Mode::Desktop`.
     #[cfg(feature = "unity")]
     unity: Option<crate::unity::Sender>,
@@ -1322,6 +1345,11 @@ impl App {
         self.pending_operation_id += 1;
         if operation.show_progress_notification() {
             self.progress_operations.insert(id);
+            // WMDE: start the clock for the operations window. An operation joining one that
+            // is already running does not restart it - the window is already earned.
+            if self.operations_window.is_none() && self.operations_since.is_none() {
+                self.operations_since = Some(Instant::now());
+            }
         }
         self.pending_operations
             .insert(id, (operation.clone(), controller.clone()));
@@ -1452,6 +1480,9 @@ impl App {
             self.progress_operations.clear();
         }
         self.wmde_unity_publish();
+        // WMDE: the tick goes away with the last pending operation, so the window has to be
+        // told here rather than left waiting for a tick that will not come.
+        commands.push(self.wmde_operations_sync());
         // Potentially show a notification
         commands.push(self.update_notification());
         // Rescan and select based on operation
@@ -1506,6 +1537,8 @@ impl App {
             self.progress_operations.clear();
         }
         self.wmde_unity_publish();
+        // WMDE: see `handle_completed_operations`.
+        tasks.push(self.wmde_operations_sync());
         // Manually rescan any trash tabs after any operation is completed
         tasks.push(self.rescan_trash());
         Task::batch(tasks)
@@ -1523,6 +1556,14 @@ impl App {
                 WindowKind::Desktop(entity) => {
                     // Remove the tab from the tab model
                     self.tab_model.remove(entity);
+                }
+                WindowKind::Operations => {
+                    // Only if this is still the current one: a close event for a window that
+                    // has already been replaced would otherwise disown its successor.
+                    if self.operations_window == Some(*id) {
+                        self.operations_window = None;
+                        self.operations_confirm_cancel = false;
+                    }
                 }
                 _ => {}
             }
@@ -2706,6 +2747,202 @@ impl App {
         )
     }
 
+    /// WMDE: feeds every running operation's byte counter into its rate estimate.
+    ///
+    /// Called from the 100 ms tick, and from the places that change the picture without one -
+    /// a pause can be the last thing that happens before the tick subscription goes away.
+    fn wmde_rates_tick(&mut self) {
+        let now = Instant::now();
+        let App {
+            pending_operations,
+            operation_rates,
+            ..
+        } = self;
+
+        operation_rates.retain(|id, _| pending_operations.contains_key(id));
+        for (id, (op, controller)) in pending_operations.iter() {
+            if !op.show_progress_notification() {
+                continue;
+            }
+            let state = operation_rates.entry(*id).or_default();
+            *state = wmde_rate_update(
+                *state,
+                now,
+                controller.counts(),
+                controller.progress(),
+                controller.is_paused(),
+            );
+        }
+    }
+
+    /// WMDE: brings the operations window in line with what is running.
+    ///
+    /// Opens it once an operation has been going long enough to deserve one, closes it when
+    /// there is nothing left to report. Both directions live here so the window cannot end up
+    /// open over an empty list or absent over a running copy.
+    fn wmde_operations_sync(&mut self) -> Task<Message> {
+        let running = self.wmde_progress_summary().is_some();
+
+        if !running {
+            self.operations_since = None;
+            return self.wmde_operations_close();
+        }
+
+        let due = self
+            .operations_since
+            .is_some_and(|since| since.elapsed() >= OPERATIONS_WINDOW_DELAY);
+        if due {
+            self.wmde_operations_open()
+        } else {
+            Task::none()
+        }
+    }
+
+    /// WMDE: opens the operations window if there is still something to show in it.
+    fn wmde_operations_open(&mut self) -> Task<Message> {
+        if self.operations_window.is_some() || self.wmde_progress_summary().is_none() {
+            return Task::none();
+        }
+
+        let (id, task) = window::open(OPERATIONS_WINDOW.settings(DIALOG_APP_ID));
+        self.windows.insert(id, Window::new(WindowKind::Operations));
+        self.operations_window = Some(id);
+        self.operations_confirm_cancel = false;
+        self.operations_since = None;
+        // The title the compositor shows is read once, at open, and cannot be changed after.
+        // The counting one lives in the header bar, which is redrawn every frame.
+        let _ = self.set_window_title(fl!("window-operations"), id);
+        task.map(|_id| cosmic::action::none())
+    }
+
+    /// WMDE: closes the operations window once there is nothing left to report.
+    ///
+    /// The entry in `windows` is left for `remove_window` to collect, the way every other
+    /// secondary window is closed here. Dropping it now would leave a window id the view
+    /// does not recognise, and an unrecognised id falls through to `view_main` - a second
+    /// file manager drawn inside the frame of a closing dialog.
+    fn wmde_operations_close(&mut self) -> Task<Message> {
+        let Some(id) = self.operations_window.take() else {
+            return Task::none();
+        };
+        self.operations_confirm_cancel = false;
+        window::close(id)
+    }
+
+    /// WMDE: title in the header bar of the operations window.
+    ///
+    /// The header is drawn by the preset from a string handed over on every frame, so unlike
+    /// the window title the compositor knows about, this one can count.
+    fn operations_title(&self) -> String {
+        match self.wmde_progress_summary() {
+            Some((progress, ..)) => fl!(
+                "operations-percent",
+                percent = ((progress * 100.0) as isize)
+            ),
+            None => fl!("window-operations"),
+        }
+    }
+
+    /// WMDE: body of the operations window - a block per running operation.
+    ///
+    /// The upstream footer drew one averaged bar for everything at once and put the per
+    /// operation controls behind a link into a context drawer. Here each operation keeps its
+    /// own line, its own rate and its own buttons, the way the copy dialog of Windows does.
+    fn operations_view(&self) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_xxs, space_s, ..
+        } = theme::spacing();
+
+        //TODO: get height from theme?
+        let progress_bar_height = Length::Fixed(4.0);
+
+        let mut blocks = Vec::new();
+        for (id, (op, controller)) in self.pending_operations.iter() {
+            if !op.show_progress_notification() {
+                continue;
+            }
+
+            let progress = controller.progress();
+            let counts = controller.counts();
+            let paused = controller.is_paused();
+
+            let mut lines = vec![
+                widget::text::body(op.pending_text(progress, controller.state())).into(),
+                widget::determinate_linear(progress)
+                    .width(Length::Fill)
+                    .girth(progress_bar_height)
+                    .into(),
+            ];
+            if let Some(text) = wmde_operation_rate_text(self.operation_rates.get(id), counts) {
+                lines.push(widget::text::caption(text).into());
+            }
+            if let Some(text) = wmde_operation_items_text(counts) {
+                lines.push(widget::text::caption(text).into());
+            }
+
+            let pause_button = if paused {
+                widget::button::icon(icon::from_name("media-playback-start-symbolic"))
+                    .on_press(Message::PendingPause(*id, false))
+                    .padding(8)
+            } else {
+                widget::button::icon(icon::from_name("media-playback-pause-symbolic"))
+                    .on_press(Message::PendingPause(*id, true))
+                    .padding(8)
+            };
+            let pause_tooltip = widget::tooltip(
+                pause_button,
+                widget::text::body(if paused { fl!("resume") } else { fl!("pause") }),
+                widget::tooltip::Position::Top,
+            );
+
+            lines.push(
+                widget::row::with_children(vec![
+                    widget::space::horizontal().into(),
+                    pause_tooltip.into(),
+                    widget::button::standard(fl!("cancel"))
+                        .on_press(Message::PendingCancel(*id))
+                        .into(),
+                ])
+                .spacing(space_xxs)
+                .align_y(Alignment::Center)
+                .into(),
+            );
+
+            blocks.push(
+                widget::column::with_children(lines)
+                    .spacing(space_xxs)
+                    .into(),
+            );
+        }
+
+        widget::column::with_children(blocks)
+            .spacing(space_s)
+            .padding(space_s)
+            .width(Length::Fill)
+            .into()
+    }
+
+    /// WMDE: the question the close button asks.
+    ///
+    /// Closing the window is the only way a stray click could throw away a copy that has been
+    /// running for half an hour, so it does not close anything by itself - it asks, and the
+    /// answer is what cancels. Per operation cancelling has its own button and no question:
+    /// that one is deliberate by the time it is pressed.
+    fn operations_cancel_view(&self) -> Element<'_, Message> {
+        widget::dialog()
+            .title(fl!("operations-cancel-title"))
+            .body(fl!("operations-cancel-body"))
+            .primary_action(
+                widget::button::suggested(fl!("operations-cancel-confirm"))
+                    .on_press(Message::OperationsCancelAll),
+            )
+            .secondary_action(
+                widget::button::standard(fl!("operations-cancel-dismiss"))
+                    .on_press(Message::OperationsKeepGoing),
+            )
+            .into()
+    }
+
     /// WMDE: whether this process reports progress to the panel at all. The only reason to
     /// keep ticking with no main window open.
     #[cfg(feature = "unity")]
@@ -2787,6 +3024,225 @@ fn wmde_progress_of(
         count - running,
         all_paused,
     ))
+}
+
+/// WMDE: smoothing constant of the transfer rate, in seconds.
+///
+/// The tick runs at 10 Hz and a disk delivers in bursts, so the raw quotient jumps by a
+/// factor of two between samples. Two seconds is long enough that the printed number sits
+/// still and short enough that a stalled copy shows it within a breath.
+const RATE_TIME_CONSTANT: f64 = 2.0;
+
+/// WMDE: below this share of the work, the remaining time is a guess dressed as a fact.
+const ETA_MIN_RATIO: f32 = 0.01;
+
+/// WMDE: an estimate longer than this is not information, it is noise.
+const ETA_MAX: Duration = Duration::from_secs(99 * 60 * 60);
+
+/// WMDE: how often the printed rate and remaining time are allowed to change.
+///
+/// The tick runs at 10 Hz and the rate carries a decimal, so without this the last digit
+/// would flicker ten times a second and the line would be unreadable while saying nothing
+/// new. Smoothing fixes the number; this fixes the text.
+const RATE_REFRESH: Duration = Duration::from_secs(1);
+
+/// WMDE: running estimate of one operation's transfer rate.
+///
+/// Fed by the same 100 ms tick that repaints the window. Kept per operation id, dropped with
+/// the operation.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct RateState {
+    /// When the operation was first sampled. The fallback estimate extrapolates from it.
+    started: Option<Instant>,
+    /// Last sample: the moment, and the bytes done by then. `None` right after a pause, so
+    /// the idle stretch never enters the average.
+    last: Option<(Instant, u64)>,
+    /// Smoothed bytes per second. Zero until a second sample arrives.
+    rate: f64,
+    /// What the window prints, and when it was last allowed to change. Held apart from the
+    /// live estimate so the text stands still between refreshes.
+    shown: Option<(f64, Option<Duration>)>,
+    shown_at: Option<Instant>,
+}
+
+impl RateState {
+    /// Bytes per second, or `None` while the estimate is still empty.
+    fn rate(&self) -> Option<f64> {
+        (self.rate.is_finite() && self.rate > 0.0).then_some(self.rate)
+    }
+
+    /// What to draw: the rate and, if there is one, the remaining time.
+    fn shown(&self) -> Option<(f64, Option<Duration>)> {
+        self.shown
+    }
+
+    fn elapsed(&self, now: Instant) -> Duration {
+        self.started.map_or(Duration::ZERO, |started| {
+            now.saturating_duration_since(started)
+        })
+    }
+}
+
+/// WMDE: fold one sample into the estimate.
+///
+/// Pure on purpose - the moment comes in as an argument, so the smoothing can be tested
+/// without a clock and without a window, the same way `wmde_progress_of` can.
+fn wmde_rate_step(mut state: RateState, now: Instant, bytes: u64, paused: bool) -> RateState {
+    if state.started.is_none() {
+        state.started = Some(now);
+    }
+
+    // A paused operation moves nothing. Averaging that in would walk the rate down to zero
+    // and take the remaining time with it, so the sample is dropped and the next one after
+    // the resume starts a fresh interval.
+    if paused {
+        state.last = None;
+        return state;
+    }
+
+    let Some((previous_at, previous_bytes)) = state.last else {
+        state.last = Some((now, bytes));
+        return state;
+    };
+
+    let seconds = now.saturating_duration_since(previous_at).as_secs_f64();
+    if seconds <= 0.0 {
+        return state;
+    }
+
+    let sample = bytes.saturating_sub(previous_bytes) as f64 / seconds;
+    state.rate = if state.rate > 0.0 {
+        // The weight of a sample follows the stretch of time it covers, not the number of
+        // ticks, so a skipped tick does not quietly change the smoothing.
+        let alpha = 1.0 - (-seconds / RATE_TIME_CONSTANT).exp();
+        state.rate + alpha * (sample - state.rate)
+    } else {
+        sample
+    };
+    state.last = Some((now, bytes));
+    state
+}
+
+/// WMDE: one tick of the estimate - fold in the sample, then decide whether the window is
+/// allowed to print a new number yet.
+fn wmde_rate_update(
+    state: RateState,
+    now: Instant,
+    counts: Counts,
+    ratio: f32,
+    paused: bool,
+) -> RateState {
+    let mut state = wmde_rate_step(state, now, counts.bytes_done, paused);
+
+    // Nothing is moving while paused, and a rate left standing on screen would claim it is.
+    if paused {
+        state.shown = None;
+        state.shown_at = None;
+        return state;
+    }
+
+    let due = state
+        .shown_at
+        .is_none_or(|at| now.saturating_duration_since(at) >= RATE_REFRESH);
+    if due && let Some(rate) = state.rate() {
+        state.shown = Some((
+            rate,
+            wmde_eta(counts, ratio, Some(rate), state.elapsed(now)),
+        ));
+        state.shown_at = Some(now);
+    }
+
+    state
+}
+
+/// WMDE: how much longer the operation has to run, or `None` when there is nothing honest to
+/// say - too early, no rate, or an answer so large it means the estimate broke.
+fn wmde_eta(counts: Counts, ratio: f32, rate: Option<f64>, elapsed: Duration) -> Option<Duration> {
+    // A NaN ratio falls out of the range check as well - no comparison against it holds.
+    if !(ETA_MIN_RATIO..1.0).contains(&ratio) {
+        return None;
+    }
+
+    let seconds = match rate {
+        // Volume is known, so divide what is left by what it is moving at.
+        Some(rate) if counts.has_bytes() => {
+            counts.bytes_total.saturating_sub(counts.bytes_done) as f64 / rate
+        }
+        // Nothing to weigh - extrapolate from how long this share took to appear. Coarse,
+        // but it is what an operation counted in items can honestly offer.
+        _ => elapsed.as_secs_f64() * f64::from(1.0 - ratio) / f64::from(ratio),
+    };
+
+    // The ceiling is checked before the conversion, not after: `Duration::from_secs_f64`
+    // panics on a value it cannot hold, and a stalled byte counter divided into a whole disk
+    // produces exactly such a value.
+    if !seconds.is_finite() || seconds < 0.0 || seconds > ETA_MAX.as_secs_f64() {
+        return None;
+    }
+    Some(Duration::from_secs_f64(seconds))
+}
+
+/// WMDE: the remaining time in the shape the Windows copy dialog uses - two units at most,
+/// the smaller one dropped once the larger makes it meaningless.
+fn wmde_format_duration(left: Duration) -> String {
+    let total = left.as_secs();
+    let hours = total / 3600;
+    let minutes = (total % 3600) / 60;
+    let seconds = total % 60;
+
+    if hours > 0 {
+        format!(
+            "{} {}",
+            fl!("time-hours", value = (hours as usize)),
+            fl!("time-minutes", value = (minutes as usize))
+        )
+    } else if minutes > 0 {
+        format!(
+            "{} {}",
+            fl!("time-minutes", value = (minutes as usize)),
+            fl!("time-seconds", value = (seconds as usize))
+        )
+    } else {
+        fl!("time-seconds", value = (seconds as usize))
+    }
+}
+
+/// WMDE: "86.4 MB/s - 1 min 20 s left", or the rate alone, or nothing when the operation
+/// cannot weigh itself. Operations counted in items - emptying the trash, setting permissions
+/// - stay silent here rather than inventing a speed.
+fn wmde_operation_rate_text(state: Option<&RateState>, counts: Counts) -> Option<String> {
+    if !counts.has_bytes() {
+        return None;
+    }
+    let (rate, eta) = state?.shown()?;
+    let rate = tab::format_size(rate as u64);
+    Some(match eta {
+        Some(left) => fl!(
+            "operations-rate-remaining",
+            rate = rate,
+            time = wmde_format_duration(left)
+        ),
+        None => fl!("operations-rate", rate = rate),
+    })
+}
+
+/// WMDE: "24 of 42 items (1.2 GB)". The volume is dropped when the operation never knew it.
+fn wmde_operation_items_text(counts: Counts) -> Option<String> {
+    if counts.items_total == 0 {
+        return None;
+    }
+    let done = counts.items_done.min(counts.items_total) as usize;
+    let total = counts.items_total as usize;
+    Some(if counts.has_bytes() {
+        fl!(
+            "operations-items-size",
+            done = done,
+            total = total,
+            size = tab::format_size(counts.bytes_total)
+        )
+    } else {
+        fl!("operations-items", done = done, total = total)
+    })
 }
 
 /// WMDE: what to put on the bus given the value already there, or `None` when nothing moved.
@@ -2949,6 +3405,10 @@ impl Application for App {
             progress_operations: BTreeSet::new(),
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
+            operations_window: None,
+            operations_confirm_cancel: false,
+            operations_since: None,
+            operation_rates: FxHashMap::default(),
             #[cfg(feature = "unity")]
             unity,
             #[cfg(feature = "unity")]
@@ -3237,6 +3697,11 @@ impl Application for App {
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<Self::Message> {
+        // WMDE: the operations window answers for itself - Alt+F4 has to ask the same
+        // question the close button does, or the shortcut becomes a way around it.
+        if self.operations_window == Some(id) {
+            return Some(Message::OperationsCloseRequested);
+        }
         Some(Message::WindowCloseRequested(id))
     }
 
@@ -3904,7 +4369,12 @@ impl Application for App {
                 }
             }
             Message::MaybeExit => {
-                if self.core.main_window_id().is_none() && self.pending_operations.is_empty() {
+                // WMDE: the operations window counts as a reason to stay. It can outlive the
+                // main window, and quitting under it would take the window with it.
+                if self.core.main_window_id().is_none()
+                    && self.pending_operations.is_empty()
+                    && self.operations_window.is_none()
+                {
                     // Exit if window is closed and there are no pending operations
                     process::exit(0);
                 }
@@ -4641,12 +5111,23 @@ impl Application for App {
                 }
                 self.wmde_unity_publish();
             }
+            Message::OperationsCloseRequested => {
+                // The window does not close itself - it asks. Everything it is showing took
+                // long enough to deserve a window, which is exactly long enough for a stray
+                // click on the corner to be expensive.
+                self.operations_confirm_cancel = true;
+            }
+            Message::OperationsCancelAll => {
+                return Task::batch(vec![
+                    self.update(Message::PendingCancelAll),
+                    self.wmde_operations_close(),
+                ]);
+            }
+            Message::OperationsKeepGoing => {
+                self.operations_confirm_cancel = false;
+            }
             Message::PendingComplete(id, op_sel) => {
                 return self.handle_completed_operations(vec![(id, op_sel)]);
-            }
-            Message::PendingDismiss => {
-                self.progress_operations.clear();
-                self.wmde_unity_publish();
             }
             Message::PendingError(id, err) => {
                 return self.handle_operation_errors(vec![(id, err)]);
@@ -4670,6 +5151,7 @@ impl Application for App {
                 // panel already has it, and a receiver that starts later is told by the sender
                 // itself when it takes `com.canonical.Unity`.
                 self.wmde_unity_publish();
+                self.wmde_rates_tick();
             }
             Message::PendingPauseAll(pause) => {
                 for (_, controller) in self.pending_operations.values() {
@@ -4681,9 +5163,12 @@ impl Application for App {
                 }
                 // WMDE: see `PendingPause`.
                 self.wmde_unity_publish();
+                self.wmde_rates_tick();
             }
             Message::PendingTick => {
                 self.wmde_unity_publish();
+                self.wmde_rates_tick();
+                return self.wmde_operations_sync();
             }
             Message::PermanentlyDelete(entity_opt) => {
                 let paths: Box<[_]> = self.selected_paths(entity_opt).collect();
@@ -6995,101 +7480,6 @@ impl Application for App {
         Some(dialog.into())
     }
 
-    fn footer(&self) -> Option<Element<'_, Message>> {
-        // WMDE: upstream counts the operations here. The count moved into
-        // `wmde_progress_summary`, which the Unity broadcast reads too, so the footer and the
-        // bar on the panel can never report different numbers; the `count == 0` case that gave
-        // a 0/0 bar is handled there as well.
-        let (total_progress, running, finished, all_paused) = self.wmde_progress_summary()?;
-
-        let cosmic_theme::Spacing {
-            space_xs, space_s, ..
-        } = theme::spacing();
-
-        let mut title = String::new();
-        for (op, controller) in self.pending_operations.values() {
-            if op.show_progress_notification() && title.is_empty() {
-                title = op.pending_text(controller.progress(), controller.state());
-            }
-        }
-        if running >= 1 && (running > 1 || finished > 0) {
-            if finished > 0 {
-                title = fl!(
-                    "operations-running-finished",
-                    running = running,
-                    finished = finished,
-                    percent = ((total_progress * 100.0) as i32)
-                );
-            } else {
-                title = fl!(
-                    "operations-running",
-                    running = running,
-                    percent = ((total_progress * 100.0) as i32)
-                );
-            }
-        }
-
-        //TODO: get height from theme?
-        let progress_bar_height = Length::Fixed(4.0);
-        let progress_bar = widget::determinate_linear(total_progress)
-            .width(Length::Fill)
-            .girth(progress_bar_height);
-
-        let container = widget::layer_container(widget::column::with_children([
-            widget::row::with_children([
-                progress_bar.into(),
-                if all_paused {
-                    widget::tooltip(
-                        widget::button::icon(icon::from_name("media-playback-start-symbolic"))
-                            .on_press(Message::PendingPauseAll(false))
-                            .padding(8),
-                        widget::text::body(fl!("resume")),
-                        widget::tooltip::Position::Top,
-                    )
-                    .into()
-                } else {
-                    widget::tooltip(
-                        widget::button::icon(icon::from_name("media-playback-pause-symbolic"))
-                            .on_press(Message::PendingPauseAll(true))
-                            .padding(8),
-                        widget::text::body(fl!("pause")),
-                        widget::tooltip::Position::Top,
-                    )
-                    .into()
-                },
-                widget::tooltip(
-                    widget::button::icon(icon::from_name("window-close-symbolic"))
-                        .on_press(Message::PendingCancelAll)
-                        .padding(8),
-                    widget::text::body(fl!("cancel")),
-                    widget::tooltip::Position::Top,
-                )
-                .into(),
-            ])
-            .align_y(Alignment::Center)
-            .into(),
-            widget::text::body(title).into(),
-            widget::space::vertical().height(space_s).into(),
-            widget::row::with_children([
-                widget::button::link(fl!("details"))
-                    .on_press(Message::ToggleContextPage(ContextPage::EditHistory))
-                    .padding(0)
-                    .trailing_icon(true)
-                    .into(),
-                widget::space::horizontal().into(),
-                widget::button::standard(fl!("dismiss"))
-                    .on_press(Message::PendingDismiss)
-                    .into(),
-            ])
-            .align_y(Alignment::Center)
-            .into(),
-        ]))
-        .padding([8, space_xs])
-        .layer(cosmic_theme::Layer::Primary);
-
-        Some(container.into())
-    }
-
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
         // WMDE: browser-style tabs at the left of the CSD title bar (Win11-like)
         let cosmic_theme::Spacing { space_xxs, .. } = theme::spacing();
@@ -7351,6 +7741,26 @@ impl Application for App {
                             self.preview(entity_opt, kind, false)
                                 .map(|x| Message::TabMessage(*entity_opt, x)),
                         ),
+                    );
+                }
+                WindowKind::Operations => {
+                    let body = if self.operations_confirm_cancel {
+                        self.operations_cancel_view()
+                    } else {
+                        self.operations_view()
+                    };
+                    return OPERATIONS_WINDOW.view(
+                        &self.core,
+                        id,
+                        // No maximize: the header of a progress window has nothing to fill a
+                        // screen with. The close button asks before it acts, so it carries a
+                        // message of its own instead of the usual `WindowCloseId`.
+                        Chrome::new(
+                            self.operations_title(),
+                            Message::OperationsCloseRequested,
+                            Message::WindowDrag(id),
+                        ),
+                        window_body(body),
                     );
                 }
                 WindowKind::FileDialog(..) => match &self.file_dialog_opt {
@@ -7753,10 +8163,16 @@ impl Application for App {
             // summary progress to the panel on the same tick.
             // WMDE: the main window is no longer the only reason to tick. The button on the
             // panel keeps showing the progress after the window is closed, and that is exactly
-            // the case where it is the only feedback the user has left. The desktop-icons
-            // layer has neither a main window nor a sender, so it keeps its old silence
-            // instead of rebuilding every icon grid ten times a second for nothing.
-            if (self.core.main_window_id().is_some() || self.wmde_unity_active())
+            // the case where it is the only feedback the user has left.
+            //
+            // The third reason is the operations window: it has to be opened once the delay
+            // runs out, kept current while it is up, and closed when the work ends. That is
+            // also why the desktop-icons layer no longer keeps its old silence - it has
+            // neither a main window nor a sender, but a copy started from the desktop still
+            // earns a window, and the grid behind it is repainted only while one is running.
+            if (self.core.main_window_id().is_some()
+                || self.wmde_unity_active()
+                || !self.progress_operations.is_empty())
                 && self
                     .pending_operations
                     .values()
@@ -7922,9 +8338,173 @@ mod tests {
             wmde_progress_of([(true, true, 0.3), running(0.5)].into_iter(), 2, 0),
             (0.4, 2, 0, false),
         );
-        // Nothing pending: the footer shows the resume button rather than the pause button,
-        // which is what upstream does too.
+        // Nothing pending: every row reads as paused, which is what upstream did too.
         assert_summary(wmde_progress_of(nothing_pending(), 1, 1), (1.0, 0, 1, true));
+    }
+
+    /// A steady stream: `step` bytes every `every`, starting from a fixed moment.
+    fn steady(step: u64, every: Duration, samples: usize) -> (RateState, Instant, u64) {
+        let start = Instant::now();
+        let mut state = RateState::default();
+        let mut bytes = 0;
+        let mut at = start;
+        for _ in 0..samples {
+            state = wmde_rate_step(state, at, bytes, false);
+            bytes += step;
+            at += every;
+        }
+        (state, at, bytes)
+    }
+
+    #[test]
+    fn rate_says_nothing_until_a_second_sample() {
+        let state = wmde_rate_step(RateState::default(), Instant::now(), 0, false);
+        assert_eq!(state.rate(), None);
+    }
+
+    #[test]
+    fn rate_settles_on_a_steady_stream() {
+        // 1 MB every 100 ms is 10 MB/s. The average starts at the first real sample and stays
+        // there, so five seconds of it must land on the nose.
+        let (state, ..) = steady(1_000_000, Duration::from_millis(100), 50);
+        let rate = state.rate().expect("a rate");
+        assert!(
+            (rate - 10_000_000.0).abs() < 1_000.0,
+            "rate {rate} is not 10 MB/s"
+        );
+    }
+
+    #[test]
+    fn rate_ignores_the_stretch_spent_paused() {
+        // Half a minute of pause must not be averaged in as half a minute of zero throughput.
+        let (state, at, bytes) = steady(1_000_000, Duration::from_millis(100), 50);
+        let before = state.rate().expect("a rate");
+
+        let paused = wmde_rate_step(state, at, bytes, true);
+        let resumed_at = at + Duration::from_secs(30);
+        let state = wmde_rate_step(paused, resumed_at, bytes, false);
+
+        assert_eq!(state.rate(), Some(before), "the pause moved the estimate");
+    }
+
+    #[test]
+    fn a_paused_operation_prints_no_rate() {
+        let counts = Counts {
+            bytes_done: 5_000_000,
+            bytes_total: 10_000_000,
+            ..Counts::default()
+        };
+        let (state, at, _) = steady(1_000_000, Duration::from_millis(100), 50);
+        let running = wmde_rate_update(state, at, counts, 0.5, false);
+        assert!(running.shown().is_some(), "a running copy prints its rate");
+
+        let paused = wmde_rate_update(running, at + Duration::from_secs(2), counts, 0.5, true);
+        assert_eq!(
+            paused.shown(),
+            None,
+            "a rate left on screen would claim something is moving"
+        );
+    }
+
+    #[test]
+    fn eta_divides_what_is_left_by_the_rate() {
+        let counts = Counts {
+            items_done: 1,
+            items_total: 2,
+            bytes_done: 500_000_000,
+            bytes_total: 1_000_000_000,
+        };
+        // 500 MB left at 10 MB/s is 50 seconds.
+        let left = wmde_eta(counts, 0.5, Some(10_000_000.0), Duration::from_secs(50))
+            .expect("an estimate");
+        assert_eq!(left.as_secs(), 50);
+    }
+
+    #[test]
+    fn eta_falls_back_to_the_share_done_without_a_volume() {
+        // Nothing to weigh, so the only evidence is that half of it took ten seconds.
+        let counts = Counts {
+            items_done: 5,
+            items_total: 10,
+            ..Counts::default()
+        };
+        let left = wmde_eta(counts, 0.5, None, Duration::from_secs(10)).expect("an estimate");
+        assert_eq!(left.as_secs(), 10);
+    }
+
+    #[test]
+    fn eta_keeps_quiet_in_the_first_percent() {
+        let counts = Counts {
+            items_total: 10,
+            ..Counts::default()
+        };
+        assert_eq!(
+            wmde_eta(counts, 0.001, None, Duration::from_secs(10)),
+            None,
+            "a thousandth of the way in says nothing about the rest"
+        );
+    }
+
+    #[test]
+    fn eta_keeps_quiet_on_a_finished_or_broken_ratio() {
+        let counts = Counts {
+            items_total: 10,
+            ..Counts::default()
+        };
+        assert_eq!(wmde_eta(counts, 1.0, None, Duration::from_secs(10)), None);
+        assert_eq!(
+            wmde_eta(counts, f32::NAN, None, Duration::from_secs(10)),
+            None
+        );
+    }
+
+    #[test]
+    fn eta_refuses_an_answer_nobody_would_believe() {
+        let counts = Counts {
+            bytes_done: 1,
+            bytes_total: u64::MAX,
+            ..Counts::default()
+        };
+        assert_eq!(
+            wmde_eta(counts, 0.5, Some(1.0), Duration::from_secs(1)),
+            None
+        );
+    }
+
+    #[test]
+    fn the_printed_rate_holds_still_between_refreshes() {
+        let counts = Counts {
+            bytes_done: 1_000_000,
+            bytes_total: 10_000_000,
+            ..Counts::default()
+        };
+        let start = Instant::now();
+        let mut state = wmde_rate_step(RateState::default(), start, 0, false);
+        state = wmde_rate_update(
+            state,
+            start + Duration::from_millis(100),
+            counts,
+            0.1,
+            false,
+        );
+        let first = state.shown().expect("something to print");
+
+        // Ten more ticks inside the same second: the number on screen must not move.
+        let mut at = start + Duration::from_millis(100);
+        for step in 1..=10 {
+            at += Duration::from_millis(50);
+            let counts = Counts {
+                bytes_done: 1_000_000 + step * 500_000,
+                ..counts
+            };
+            state = wmde_rate_update(state, at, counts, 0.2, false);
+            assert_eq!(state.shown(), Some(first), "the text moved inside a second");
+        }
+
+        // Past the refresh it is allowed to change again.
+        state = wmde_rate_update(state, start + Duration::from_secs(2), counts, 0.3, false);
+        assert!(state.shown().is_some());
+        assert_ne!(state.shown_at, Some(start + Duration::from_millis(100)));
     }
 
     #[cfg(feature = "unity")]

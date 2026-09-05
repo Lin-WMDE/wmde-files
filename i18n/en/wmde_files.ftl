@@ -36,8 +36,6 @@ trashed-on = Trashed
 size = Size
 
 # Progress footer
-details = Details
-dismiss = Dismiss message
 operations-running = {$running} {$running ->
     [one] operation
     *[other] operations
@@ -208,6 +206,20 @@ try-again = Try again
 username = Username
 
 ## Operations
+# WMDE: the file operations window, which replaced the window footer.
+window-operations = File operations
+operations-percent = {$percent}% complete
+operations-rate = {$rate}/s
+operations-rate-remaining = {$rate}/s - {$time} left
+operations-items = {$done} of {$total} items
+operations-items-size = {$done} of {$total} items ({$size})
+operations-cancel-title = Cancel all operations?
+operations-cancel-body = Whatever has already been copied or moved stays where it is.
+operations-cancel-confirm = Cancel all
+operations-cancel-dismiss = Keep going
+time-hours = {$value} h
+time-minutes = {$value} min
+time-seconds = {$value} s
 cancelled = Cancelled
 edit-history = Edit history
 history = History

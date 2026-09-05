@@ -14,7 +14,7 @@ use tokio::sync::{Mutex as TokioMutex, mpsc};
 use walkdir::WalkDir;
 use zip::AesMode::Aes256;
 
-pub use self::controller::{Controller, ControllerState};
+pub use self::controller::{Controller, ControllerState, Counts};
 pub mod controller;
 
 pub use notifiers::*;
@@ -714,7 +714,7 @@ impl Operation {
                                             .map_err(|e| OperationError::from_state(e, &controller))
                                     })?;
 
-                                    controller.set_progress((i as f32) / total_paths as f32);
+                                    controller.set_items(i as u64, total_paths as u64);
 
                                     if let Some(relative_path) = path
                                         .strip_prefix(relative_root)
@@ -749,7 +749,7 @@ impl Operation {
                                             .map_err(|s| OperationError::from_state(s, &controller))
                                     })?;
 
-                                    controller.set_progress((i as f32) / total_paths as f32);
+                                    controller.set_items(i as u64, total_paths as u64);
 
                                     let mut zip_options = zip::write::SimpleFileOptions::default();
                                     if password.is_some() {
@@ -856,7 +856,7 @@ impl Operation {
                             .map_err(|s| OperationError::from_state(s, &controller))
                     })?;
 
-                    controller.set_progress((i as f32) / (total as f32));
+                    controller.set_items(i as u64, total as u64);
 
                     let _items_opt = compio::runtime::spawn_blocking(|| trash::delete(path))
                         .await
@@ -888,7 +888,7 @@ impl Operation {
                                     .map_err(|s| OperationError::from_state(s, &controller))
                             })?;
 
-                            controller.set_progress(i as f32 / count as f32);
+                            controller.set_items(i as u64, count as u64);
 
                             trash::os_limited::purge_all([item])
                                 .map_err(|e| OperationError::from_err(e, &controller))?;
@@ -932,7 +932,7 @@ impl Operation {
                                 errors.push(e);
                             }
 
-                            controller.set_progress(i as f32 / count as f32);
+                            controller.set_items(i as u64, count as u64);
                         }
 
                         // Report errors at the end
@@ -982,7 +982,7 @@ impl Operation {
                                     .map_err(|s| OperationError::from_state(s, &controller))
                             })?;
 
-                            controller.set_progress((i as f32) / total_paths as f32);
+                            controller.set_items(i as u64, total_paths as u64);
 
                             if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
                                 let dir_name = get_directory_name(file_name);
@@ -1083,7 +1083,7 @@ impl Operation {
                         .await
                         .map_err(|s| OperationError::from_state(s, &controller))?;
 
-                    controller.set_progress((idx as f32) / (total as f32));
+                    controller.set_items(idx as u64, total as u64);
 
                     tokio::task::spawn_blocking(|| {
                         if path.is_symlink() || path.is_file() {
@@ -1152,7 +1152,7 @@ impl Operation {
                         .await
                         .map_err(|s| OperationError::from_state(s, &controller))?;
 
-                    controller.set_progress((i as f32) / (total as f32));
+                    controller.set_items(i as u64, total as u64);
 
                     paths.push(item.original_path());
 
@@ -1328,6 +1328,91 @@ mod tests {
         };
 
         future::join(handle_messages, handle_copy).await.1
+    }
+
+    /// WMDE: same as `operation_copy`, but the caller keeps the controller so the byte and
+    /// item counters behind the progress ratio can be read once the copy is done.
+    pub async fn operation_copy_counted(
+        paths: Vec<PathBuf>,
+        to: PathBuf,
+        controller: Controller,
+    ) -> Result<OperationSelection, OperationError> {
+        let (tx, mut rx) = mpsc::channel(1);
+
+        let handle_copy = async move {
+            Operation::Copy { paths, to }
+                .perform(&sync::Mutex::new(tx).into(), controller)
+                .await
+        };
+
+        let handle_messages = async move {
+            while let Some(msg) = rx.next().await {
+                if let Message::DialogPush(DialogPage::Replace { tx, .. }, _id) = msg {
+                    tx.send(ReplaceResult::Cancel)
+                        .await
+                        .expect("Sending a response to a replace request should succeed");
+                }
+            }
+        };
+
+        future::join(handle_messages, handle_copy).await.1
+    }
+
+    /// WMDE: total size of every regular file under `path`, the number the survey in
+    /// `recursive_copy_or_move` is supposed to arrive at.
+    fn tree_bytes(path: &std::path::Path) -> u64 {
+        walkdir::WalkDir::new(path)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+            .filter_map(|entry| entry.metadata().ok())
+            .map(|metadata| metadata.len())
+            .sum()
+    }
+
+    #[test(compio::test)]
+    async fn copy_counts_the_whole_tree_in_bytes() -> io::Result<()> {
+        let fs = simple_fs(NUM_FILES, NUM_HIDDEN, NUM_DIRS, NUM_NESTED, NAME_LEN)?;
+        let path = fs.path();
+
+        let (first_dir, second_dir) = {
+            let mut dirs = filter_dirs(path)?;
+            (
+                dirs.next().expect("Should have at least two dirs"),
+                dirs.next().expect("Should have at least two dirs"),
+            )
+        };
+
+        let expected = tree_bytes(&first_dir);
+        assert!(expected > 0, "the fixture should carry some bytes");
+
+        let controller = Controller::default();
+        operation_copy_counted(
+            vec![first_dir.clone()],
+            second_dir.clone(),
+            controller.clone(),
+        )
+        .await
+        .expect("Copying a directory into another one should succeed");
+
+        let counts = controller.counts();
+        assert_eq!(
+            counts.bytes_total, expected,
+            "the survey and the tree disagree on the volume"
+        );
+        assert_eq!(
+            counts.bytes_done, counts.bytes_total,
+            "a finished copy should have accounted for every byte it promised"
+        );
+        assert!(counts.has_bytes(), "a copy of real files knows its volume");
+        assert!(
+            counts.items_total > 0 && counts.items_done <= counts.items_total,
+            "items {} of {} make no sense",
+            counts.items_done,
+            counts.items_total
+        );
+
+        Ok(())
     }
 
     #[test(compio::test)]

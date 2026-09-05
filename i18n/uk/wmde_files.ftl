@@ -72,6 +72,20 @@ skip = Пропустити
 
 
 ## Operations
+# WMDE: the file operations window, which replaced the window footer.
+window-operations = Файлові операції
+operations-percent = {$percent}% завершено
+operations-rate = {$rate}/с
+operations-rate-remaining = {$rate}/с - залишилось {$time}
+operations-items = Елементів: {$done} з {$total}
+operations-items-size = Елементів: {$done} з {$total} ({$size})
+operations-cancel-title = Скасувати всі операції?
+operations-cancel-body = Те, що вже скопійовано чи перенесено, залишиться на місці.
+operations-cancel-confirm = Скасувати всі
+operations-cancel-dismiss = Продовжити
+time-hours = {$value} год
+time-minutes = {$value} хв
+time-seconds = {$value} с
 
 edit-history = Історія дій
 history = Історія
@@ -186,8 +200,6 @@ menu-settings = Налаштування...
 menu-about = Про WMDE Files...
 repository = Сховище
 support = Підтримка
-details = Подробиці
-dismiss = Закрити повідомлення
 remove = Вилучити
 cancelled = Скасовані
 no-results = Нічого не знайдено

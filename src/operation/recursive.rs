@@ -19,8 +19,21 @@ use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use walkdir::WalkDir;
+
+/// WMDE: how many entries the survey agrees to weigh before it gives up.
+const SIZE_SCAN_LIMIT: usize = 50_000;
+
+/// WMDE: and how long. Whichever comes first.
+///
+/// `DirEntry::metadata` is a real `lstat` - walkdir takes the file type from `d_type` for
+/// free, but not the size. On a local disk that is fractions of a microsecond per entry and
+/// nobody notices. Through gvfs it is a round trip to the daemon, and twenty thousand files
+/// on an SMB share would sit there for tens of seconds before the copy even starts, which
+/// reads as a hung file manager rather than as a slow one. Past the budget the survey stops,
+/// the volume is reported as unknown, and the window falls back to counting items.
+const SIZE_SCAN_BUDGET: Duration = Duration::from_millis(400);
 
 #[cfg(feature = "gvfs")]
 use gio::prelude::FileExtManual;
@@ -47,6 +60,12 @@ pub struct Context {
     pub(crate) op_sel: OperationSelection,
     replace_result_opt: Option<ReplaceResult>,
     remaining_conflicts: usize,
+    // WMDE: bytes of every item before position i, so a callback that only knows "item i, n
+    // bytes into it" can report bytes done over the whole operation without carrying state.
+    // One longer than the op list; empty until the tree has been walked.
+    bytes_before: Vec<u64>,
+    // WMDE: ops the user actually asked for, without the cleanup tail a move appends.
+    primary_ops: usize,
 }
 
 pub trait OnProgress: Fn(&Op, &Progress) + 'static {}
@@ -72,7 +91,25 @@ impl Context {
             op_sel: OperationSelection::default(),
             replace_result_opt: None,
             remaining_conflicts: 0,
+            bytes_before: Vec::new(),
+            primary_ops: 0,
         }
+    }
+
+    /// WMDE: publish the counters behind the ratio, then hand the progress to the subscriber.
+    /// Both leave together, so the numbers in the operations window and the percentage on the
+    /// panel button cannot drift apart.
+    fn report(&self, op: &Op, progress: &Progress) {
+        let base = self
+            .bytes_before
+            .get(progress.current_ops)
+            .copied()
+            .unwrap_or(0);
+        self.controller.set_done(
+            progress.current_ops as u64,
+            base.saturating_add(progress.current_bytes),
+        );
+        (self.on_progress)(op, progress);
     }
 
     pub async fn recursive_copy_or_move(
@@ -81,6 +118,12 @@ impl Context {
         method: Method,
     ) -> Result<bool, OperationError> {
         let mut ops = Vec::new();
+        // WMDE: size of each op in `ops`, same order. Cleanup ops weigh nothing.
+        let mut op_sizes: Vec<u64> = Vec::new();
+        // WMDE: whether the survey held out to the end. Once it gives up the volume is
+        // unknown, and unknown has to be reported as such rather than as a partial sum.
+        let mut measured = true;
+        let scan_deadline = Instant::now() + SIZE_SCAN_BUDGET;
         let mut cleanup_ops = Vec::new();
         let mut written_files = Vec::new();
         let mut target_dirs = std::collections::HashSet::new();
@@ -112,6 +155,20 @@ impl Context {
                     )
                 })?;
                 let file_type = entry.file_type();
+                // WMDE: weigh the tree while walking it, as long as it is cheap to do so.
+                // Directories and symlinks weigh nothing here on purpose - a symlink is
+                // recreated rather than followed, and the size of a directory inode says
+                // nothing about what is being copied. A file that refuses to be stat'ed
+                // counts as zero: it may have vanished between readdir and here, and that
+                // must not take the operation down with it.
+                if measured && (ops.len() >= SIZE_SCAN_LIMIT || Instant::now() >= scan_deadline) {
+                    measured = false;
+                }
+                let entry_size = if measured && file_type.is_file() {
+                    entry.metadata().map(|metadata| metadata.len()).unwrap_or(0)
+                } else {
+                    0
+                };
                 let from = entry.into_path();
                 let kind = if file_type.is_dir() {
                     OpKind::Mkdir
@@ -172,10 +229,17 @@ impl Context {
                     target_dirs.insert(parent.to_path_buf());
                 }
                 ops.push(op);
+                op_sizes.push(entry_size);
             }
 
             self.op_sel.ignored.push(from_parent);
         }
+
+        // WMDE: how many items the user asked for, counted before the cleanup tail is added.
+        // A move produces a removal op for every copy op, and reporting "824 items" for the
+        // 412 files someone selected reads as a bug. The tail is fast; the item counter
+        // simply sits at the total while it runs.
+        let primary_ops = ops.len();
 
         // Add cleanup ops after standard ops, in reverse
         cleanup_ops.reverse();
@@ -193,6 +257,22 @@ impl Context {
             .count();
 
         let total_ops = ops.len();
+        // WMDE: cleanup ops were appended after the walk and carry no size of their own.
+        op_sizes.resize(total_ops, 0);
+        let mut bytes_before = Vec::with_capacity(total_ops + 1);
+        let mut bytes_total = 0u64;
+        bytes_before.push(0);
+        for size in &op_sizes {
+            bytes_total = bytes_total.saturating_add(*size);
+            bytes_before.push(bytes_total);
+        }
+        self.bytes_before = bytes_before;
+        self.primary_ops = primary_ops;
+        // WMDE: the totals go straight to the controller rather than through `on_progress`.
+        // They exist before the first `Op` does, and the callback wants one.
+        self.controller
+            .set_totals(primary_ops as u64, if measured { bytes_total } else { 0 });
+
         for (current_ops, mut op) in ops.into_iter().enumerate() {
             self.controller
                 .check()
@@ -205,7 +285,7 @@ impl Context {
                 current_bytes: 0,
                 total_bytes: None,
             };
-            (self.on_progress)(&op, &progress);
+            self.report(&op, &progress);
             if op.run(self, progress).await.map_err(|err| {
                 OperationError::from_err(
                     format!(
@@ -237,6 +317,16 @@ impl Context {
                 return Ok(false);
             }
         }
+
+        // WMDE: credit the last item. The callbacks are throttled and the copy loop leaves
+        // through `Ok(0)` without a final one, so the bytes of whatever ran last are never
+        // reported by the item itself - the running total only advances when a *later* item
+        // reports. Only on the way out through success: a cancelled operation must not end up
+        // claiming it moved everything.
+        self.controller.set_done(
+            self.primary_ops as u64,
+            self.controller.counts().bytes_total,
+        );
 
         // Flush files to disk
         sync_to_disk(written_files, target_dirs).await;
@@ -492,7 +582,7 @@ impl Op {
             }
         };
         progress.total_bytes = metadata.as_ref().map(|m| m.len());
-        (ctx.on_progress)(self, &progress);
+        ctx.report(self, &progress);
 
         if let Some(metadata) = metadata.as_ref()
             && let Err(why) = to_file.set_permissions(metadata.permissions()).await
@@ -556,7 +646,7 @@ impl Op {
             let current = Instant::now();
             if current.duration_since(last_progress_update).as_millis() > 49 {
                 last_progress_update = current;
-                (ctx.on_progress)(self, &progress);
+                ctx.report(self, &progress);
 
                 // Also check if the progress was cancelled.
                 if let Err(state) = ctx.controller.check().await {
@@ -686,7 +776,7 @@ impl Op {
                         let current = Instant::now();
                         if current.duration_since(last_progress_update).as_millis() > 49 {
                             last_progress_update = current;
-                            (ctx.on_progress)(self, &progress);
+                            ctx.report(self, &progress);
                             // Also check if the progress was cancelled.
                             if let Err(state) = ctx.controller.check().await {
                                 tracing::warn!(

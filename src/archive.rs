@@ -157,7 +157,7 @@ fn zip_extract<R: io::Read + io::Seek, P: AsRef<Path>>(
                 .map_err(|s| io::Error::other(OperationError::from_state(s, &controller)))
         })?;
 
-        controller.set_progress(i as f32 / total_files as f32);
+        controller.set_items(i as u64, total_files as u64);
 
         let mut file = match password {
             None => archive.by_index(i),
