@@ -8794,6 +8794,7 @@ dependencies = [
  "xdg",
  "xdg-mime",
  "xdgen",
+ "zbus 5.18.0",
  "zip",
 ]
 

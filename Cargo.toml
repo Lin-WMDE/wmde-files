@@ -71,6 +71,11 @@ thiserror = "2.0.18"
 atomic_float = "1.1.0"
 num_enum = "0.7.6"
 bstr = "1.12.1"
+# WMDE: broadcasts operation progress over com.canonical.Unity.LauncherEntry so the panel can
+# paint it on this application's button. `default-features = false` is required: zbus 5 pulls
+# in async-io by default, and libcosmic already builds zbus with the tokio reactor. Optional
+# and off in the desktop-icons build - see the `unity` feature below.
+zbus = { version = "5", default-features = false, features = ["tokio"], optional = true }
 
 # Completion-based IO runtime for file operations. Drives the copy loop in
 # `operation/recursive.rs`; on our builds through its polling driver, see `io-uring` below.
@@ -116,6 +121,7 @@ default = [
     "gvfs",
     "lzma-rust2",
     "notify",
+    "unity",
     "wayland",
     "wgpu",
 ]
@@ -133,6 +139,10 @@ gvfs = ["dep:gio", "dep:glib"]
 io-uring = ["compio/io-uring"]
 jemalloc = ["dep:tikv-jemallocator"]
 notify = ["dep:notify-rust"]
+# WMDE: the Unity progress broadcast. Off in `wmde-files-applet`: the desktop-icons process
+# never starts the sender (`Mode::Desktop`), and it already pins zbus 4 of its own, so linking
+# zbus 5 next to it would grow the longest-lived binary of the stack for nothing.
+unity = ["dep:zbus"]
 wayland = ["libcosmic/wayland", "dep:cctk", "dep:wayland-client"]
 wgpu = ["libcosmic/wgpu"]
 

@@ -445,6 +445,7 @@ pub enum Message {
     PendingResults(Vec<(u64, OperationSelection)>, Vec<(u64, OperationError)>),
     PendingPause(u64, bool),
     PendingPauseAll(bool),
+    PendingTick,
     PermanentlyDelete(Option<Entity>),
     Preview(Option<Entity>),
     ReloadMimeAppCache,
@@ -791,6 +792,13 @@ pub struct App {
     progress_operations: BTreeSet<u64>,
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, Controller, String)>,
+    // WMDE: progress broadcaster for the panel. `None` in `Mode::Desktop`.
+    #[cfg(feature = "unity")]
+    unity: Option<crate::unity::Sender>,
+    // WMDE: last value handed to it, in whole percents, so a tick that moved nothing sends
+    // nothing.
+    #[cfg(feature = "unity")]
+    unity_last: Option<(i32, bool)>,
     scrollable_id: widget::Id,
     search_id: widget::Id,
     size: Option<Size>,
@@ -1317,6 +1325,8 @@ impl App {
         }
         self.pending_operations
             .insert(id, (operation.clone(), controller.clone()));
+        // WMDE: the bar on the panel appears with the operation, not on the next tick.
+        self.wmde_unity_publish();
 
         // Use a task to send operations to the compio runtime thread.
         cosmic::Task::stream(cosmic::iced::stream::channel(4, move |msg_tx| async move {
@@ -1441,6 +1451,7 @@ impl App {
         {
             self.progress_operations.clear();
         }
+        self.wmde_unity_publish();
         // Potentially show a notification
         commands.push(self.update_notification());
         // Rescan and select based on operation
@@ -1494,6 +1505,7 @@ impl App {
         {
             self.progress_operations.clear();
         }
+        self.wmde_unity_publish();
         // Manually rescan any trash tabs after any operation is completed
         tasks.push(self.rescan_trash());
         Task::batch(tasks)
@@ -2672,6 +2684,133 @@ impl App {
 
         false
     }
+
+    /// WMDE: summary of the operations that show progress: (progress 0..=1, running, finished,
+    /// all paused). `None` when there is nothing to show.
+    ///
+    /// Shared by the footer and by the Unity broadcast, so both always report the same number.
+    fn wmde_progress_summary(&self) -> Option<(f32, usize, usize, bool)> {
+        wmde_progress_of(
+            self.pending_operations.values().map(|(op, controller)| {
+                (
+                    op.show_progress_notification(),
+                    controller.is_paused(),
+                    controller.progress(),
+                )
+            }),
+            self.progress_operations.len(),
+            self.progress_operations
+                .iter()
+                .filter(|id| self.complete_operations.contains_key(*id))
+                .count(),
+        )
+    }
+
+    /// WMDE: whether this process reports progress to the panel at all. The only reason to
+    /// keep ticking with no main window open.
+    #[cfg(feature = "unity")]
+    fn wmde_unity_active(&self) -> bool {
+        self.unity.is_some()
+    }
+
+    #[cfg(not(feature = "unity"))]
+    fn wmde_unity_active(&self) -> bool {
+        false
+    }
+
+    /// WMDE: hands the summary progress to the panel. Quantized to whole percents: the tick
+    /// runs at 10 Hz, the signal is a broadcast, and one message makes the applet rebuild its
+    /// view.
+    #[cfg(feature = "unity")]
+    fn wmde_unity_publish(&mut self) {
+        let Some(unity) = self.unity.as_ref() else {
+            return;
+        };
+        let payload = wmde_unity_payload(self.wmde_progress_summary());
+        let Some(payload) = wmde_unity_next(self.unity_last, payload) else {
+            return;
+        };
+        self.unity_last = Some(payload);
+        let (percent, visible) = payload;
+        unity.send(crate::unity::Update {
+            progress: f64::from(percent) / 100.0,
+            visible,
+        });
+    }
+
+    #[cfg(not(feature = "unity"))]
+    fn wmde_unity_publish(&mut self) {}
+}
+
+/// WMDE: the summary the footer draws and the bus carries, over borrowed values so it can be
+/// exercised without an `App`.
+///
+/// `pending` yields one tuple per pending operation: (shows progress, paused, progress
+/// 0..=1). `tracked` is the size of `progress_operations`, `finished` the number of those ids
+/// that already completed - they count as 100 % so the bar does not jump backwards when one
+/// operation of several ends.
+fn wmde_progress_of(
+    pending: impl Iterator<Item = (bool, bool, f32)>,
+    tracked: usize,
+    finished: usize,
+) -> Option<(f32, usize, usize, bool)> {
+    if tracked == 0 {
+        return None;
+    }
+
+    let mut total_progress = 0.0;
+    let mut count = 0;
+    let mut all_paused = true;
+    for (shows_progress, paused, progress) in pending {
+        if !paused {
+            all_paused = false;
+        }
+        if shows_progress {
+            total_progress += progress;
+            count += 1;
+        }
+    }
+    let running = count;
+    // Adjust the progress bar so it does not jump around when operations finish
+    total_progress += finished as f32;
+    count += finished;
+    if count == 0 {
+        // WMDE: an id left in `progress_operations` with nothing behind it would give 0/0.
+        // In the footer that is a broken bar; on the bus it is a double that a receiver may
+        // take for a real value.
+        return None;
+    }
+
+    Some((
+        total_progress / count as f32,
+        running,
+        count - running,
+        all_paused,
+    ))
+}
+
+/// WMDE: what to put on the bus given the value already there, or `None` when nothing moved.
+///
+/// The tick runs at 10 Hz for the whole length of an operation, and every message makes each
+/// receiving applet rebuild its view, so a percentage that did not change must not be sent.
+#[cfg(feature = "unity")]
+fn wmde_unity_next(last: Option<(i32, bool)>, payload: (i32, bool)) -> Option<(i32, bool)> {
+    (last != Some(payload)).then_some(payload)
+}
+
+/// WMDE: the value the Unity broadcast carries for a given progress summary, as (whole
+/// percents, visible).
+///
+/// A summary that is missing or not a finite number hides the bar instead of putting an
+/// unusable double on the bus.
+#[cfg(feature = "unity")]
+fn wmde_unity_payload(summary: Option<(f32, usize, usize, bool)>) -> (i32, bool) {
+    match summary {
+        Some((total, _, _, _)) if total.is_finite() => {
+            ((total.clamp(0.0, 1.0) * 100.0).round() as i32, true)
+        }
+        _ => (0, false),
+    }
 }
 
 /// Implement [`Application`] to integrate with WMDE.
@@ -2747,6 +2886,13 @@ impl Application for App {
                 });
         });
 
+        // WMDE: the panel paints the summary progress on this application's button. Only the
+        // real application does it: the desktop-icons process shares this app id and lives for
+        // the whole session, and a copy started on the desktop has no window to click through
+        // to.
+        #[cfg(feature = "unity")]
+        let unity = matches!(flags.mode, Mode::App).then(crate::unity::spawn);
+
         let about = About::default()
             .name(fl!("wmde-files"))
             .icon(icon::from_name(Self::APP_ID))
@@ -2803,6 +2949,10 @@ impl Application for App {
             progress_operations: BTreeSet::new(),
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
+            #[cfg(feature = "unity")]
+            unity,
+            #[cfg(feature = "unity")]
+            unity_last: None,
             scrollable_id: widget::Id::new("File Scrollable"),
             search_id: widget::Id::new("File Search"),
             size: None,
@@ -4482,18 +4632,21 @@ impl Application for App {
                     controller.cancel();
                     self.progress_operations.remove(&id);
                 }
+                self.wmde_unity_publish();
             }
             Message::PendingCancelAll => {
                 for (id, (_, controller)) in &self.pending_operations {
                     controller.cancel();
                     self.progress_operations.remove(id);
                 }
+                self.wmde_unity_publish();
             }
             Message::PendingComplete(id, op_sel) => {
                 return self.handle_completed_operations(vec![(id, op_sel)]);
             }
             Message::PendingDismiss => {
                 self.progress_operations.clear();
+                self.wmde_unity_publish();
             }
             Message::PendingError(id, err) => {
                 return self.handle_operation_errors(vec![(id, err)]);
@@ -4512,6 +4665,11 @@ impl Application for App {
                         controller.unpause();
                     }
                 }
+                // WMDE: pausing every operation stops the tick, so whatever moved since the
+                // last one goes out now. An unchanged value is coalesced away as usual - the
+                // panel already has it, and a receiver that starts later is told by the sender
+                // itself when it takes `com.canonical.Unity`.
+                self.wmde_unity_publish();
             }
             Message::PendingPauseAll(pause) => {
                 for (_, controller) in self.pending_operations.values() {
@@ -4521,6 +4679,11 @@ impl Application for App {
                         controller.unpause();
                     }
                 }
+                // WMDE: see `PendingPause`.
+                self.wmde_unity_publish();
+            }
+            Message::PendingTick => {
+                self.wmde_unity_publish();
             }
             Message::PermanentlyDelete(entity_opt) => {
                 let paths: Box<[_]> = self.selected_paths(entity_opt).collect();
@@ -6833,41 +6996,22 @@ impl Application for App {
     }
 
     fn footer(&self) -> Option<Element<'_, Message>> {
-        if self.progress_operations.is_empty() {
-            return None;
-        }
+        // WMDE: upstream counts the operations here. The count moved into
+        // `wmde_progress_summary`, which the Unity broadcast reads too, so the footer and the
+        // bar on the panel can never report different numbers; the `count == 0` case that gave
+        // a 0/0 bar is handled there as well.
+        let (total_progress, running, finished, all_paused) = self.wmde_progress_summary()?;
 
         let cosmic_theme::Spacing {
             space_xs, space_s, ..
         } = theme::spacing();
 
         let mut title = String::new();
-        let mut total_progress = 0.0;
-        let mut count = 0;
-        let mut all_paused = true;
         for (op, controller) in self.pending_operations.values() {
-            if !controller.is_paused() {
-                all_paused = false;
-            }
-            if op.show_progress_notification() {
-                let progress = controller.progress();
-                if title.is_empty() {
-                    title = op.pending_text(progress, controller.state());
-                }
-                total_progress += progress;
-                count += 1;
+            if op.show_progress_notification() && title.is_empty() {
+                title = op.pending_text(controller.progress(), controller.state());
             }
         }
-        let running = count;
-        // Adjust the progress bar so it does not jump around when operations finish
-        for id in &self.progress_operations {
-            if self.complete_operations.contains_key(id) {
-                total_progress += 1.0;
-                count += 1;
-            }
-        }
-        let finished = count - running;
-        total_progress /= count as f32;
         if running >= 1 && (running > 1 || finished > 0) {
             if finished > 0 {
                 title = fl!(
@@ -7605,19 +7749,26 @@ impl Application for App {
         if !self.pending_operations.is_empty() {
             //TODO: inhibit suspend/shutdown?
 
-            if self.core.main_window_id().is_some() {
-                // Force refresh the UI every 100ms while an operation is active.
-                if self
+            // Force refresh the UI every 100ms while an operation is active, and publish the
+            // summary progress to the panel on the same tick.
+            // WMDE: the main window is no longer the only reason to tick. The button on the
+            // panel keeps showing the progress after the window is closed, and that is exactly
+            // the case where it is the only feedback the user has left. The desktop-icons
+            // layer has neither a main window nor a sender, so it keeps its old silence
+            // instead of rebuilding every icon grid ten times a second for nothing.
+            if (self.core.main_window_id().is_some() || self.wmde_unity_active())
+                && self
                     .pending_operations
                     .values()
                     .any(|(_, controller)| !controller.is_paused())
-                {
-                    subscriptions.push(
-                        cosmic::iced::time::every(Duration::from_millis(100))
-                            .map(|_| Message::None),
-                    );
-                }
-            } else {
+            {
+                subscriptions.push(
+                    cosmic::iced::time::every(Duration::from_millis(100))
+                        .map(|_| Message::PendingTick),
+                );
+            }
+
+            if self.core.main_window_id().is_none() {
                 // Handle notification when window is closed and operations are in progress
                 #[cfg(feature = "notify")]
                 {
@@ -7696,6 +7847,148 @@ impl Application for App {
         }));
 
         Subscription::batch(subscriptions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One running operation that draws a bar, at `progress`: (shows progress, paused,
+    /// progress) - the tuple `wmde_progress_of` takes.
+    fn running(progress: f32) -> (bool, bool, f32) {
+        (true, false, progress)
+    }
+
+    /// No pending operations at all, typed for `wmde_progress_of`.
+    fn nothing_pending() -> std::iter::Empty<(bool, bool, f32)> {
+        std::iter::empty()
+    }
+
+    /// The percentage is a float average, so it is compared with a tolerance; the counters and
+    /// the paused flag are exact.
+    fn assert_summary(got: Option<(f32, usize, usize, bool)>, want: (f32, usize, usize, bool)) {
+        let got = got.expect("a summary");
+        assert!(
+            (got.0 - want.0).abs() < 1e-5,
+            "progress {} is not {}",
+            got.0,
+            want.0
+        );
+        assert_eq!((got.1, got.2, got.3), (want.1, want.2, want.3));
+    }
+
+    #[test]
+    fn progress_summary_averages_the_operations_that_show_progress() {
+        let summary = wmde_progress_of([running(0.2), running(0.8)].into_iter(), 2, 0);
+        assert_summary(summary, (0.5, 2, 0, false));
+    }
+
+    #[test]
+    fn progress_summary_counts_finished_operations_as_whole() {
+        // Without this the denominator would shrink as operations end and the bar would jump
+        // backwards: three operations, two done, the third at 70 % must read 90 %, not 70 %.
+        let summary = wmde_progress_of([running(0.7)].into_iter(), 3, 2);
+        assert_summary(summary, (0.9, 1, 2, false));
+    }
+
+    #[test]
+    fn progress_summary_ignores_operations_without_a_bar() {
+        // A pending operation that shows no progress still decides `all_paused`, but its
+        // percentage is not part of the average.
+        let summary = wmde_progress_of([running(0.4), (false, false, 0.0)].into_iter(), 1, 0);
+        assert_summary(summary, (0.4, 1, 0, false));
+    }
+
+    #[test]
+    fn progress_summary_is_nothing_without_tracked_operations() {
+        assert_eq!(wmde_progress_of([running(0.5)].into_iter(), 0, 0), None);
+    }
+
+    #[test]
+    fn progress_summary_is_nothing_when_the_id_has_nothing_behind_it() {
+        // An id left in `progress_operations` with neither a pending nor a completed operation
+        // behind it would divide by zero: a broken bar in the footer, a NaN on the bus.
+        assert_eq!(wmde_progress_of(nothing_pending(), 1, 0), None);
+    }
+
+    #[test]
+    fn progress_summary_reports_all_paused() {
+        assert_summary(
+            wmde_progress_of([(true, true, 0.3)].into_iter(), 1, 0),
+            (0.3, 1, 0, true),
+        );
+        assert_summary(
+            wmde_progress_of([(true, true, 0.3), running(0.5)].into_iter(), 2, 0),
+            (0.4, 2, 0, false),
+        );
+        // Nothing pending: the footer shows the resume button rather than the pause button,
+        // which is what upstream does too.
+        assert_summary(wmde_progress_of(nothing_pending(), 1, 1), (1.0, 0, 1, true));
+    }
+
+    #[cfg(feature = "unity")]
+    mod unity {
+        use super::*;
+
+        #[test]
+        fn unity_payload_hides_the_bar_without_a_summary() {
+            assert_eq!(wmde_unity_payload(None), (0, false));
+        }
+
+        #[test]
+        fn unity_payload_reports_whole_percents() {
+            assert_eq!(wmde_unity_payload(Some((0.5, 1, 0, false))), (50, true));
+            assert_eq!(wmde_unity_payload(Some((0.004, 1, 0, false))), (0, true));
+            assert_eq!(wmde_unity_payload(Some((0.005, 1, 0, false))), (1, true));
+            assert_eq!(wmde_unity_payload(Some((1.0, 0, 1, false))), (100, true));
+        }
+
+        #[test]
+        fn unity_payload_clamps_out_of_range_progress() {
+            assert_eq!(wmde_unity_payload(Some((1.5, 1, 0, false))), (100, true));
+            assert_eq!(wmde_unity_payload(Some((-0.2, 1, 0, false))), (0, true));
+        }
+
+        #[test]
+        fn unity_payload_hides_the_bar_for_a_broken_number() {
+            // 0/0 must never reach the bus: a receiver would take the double for a real value.
+            assert_eq!(
+                wmde_unity_payload(Some((f32::NAN, 1, 0, false))),
+                (0, false)
+            );
+            assert_eq!(
+                wmde_unity_payload(Some((f32::INFINITY, 1, 0, false))),
+                (0, false)
+            );
+        }
+
+        #[test]
+        fn unity_payload_is_stable_for_progress_below_one_percent() {
+            // What the throttle in `wmde_unity_publish` compares: a tick that moved the
+            // progress by less than a percent has to produce the very same pair, or nothing
+            // is coalesced.
+            let first = wmde_unity_payload(Some((0.5001, 1, 0, false)));
+            let second = wmde_unity_payload(Some((0.5049, 1, 0, false)));
+            assert_eq!(first, second);
+        }
+
+        #[test]
+        fn unity_sends_only_what_changed() {
+            // The very first value always goes out: the receiver has nothing yet.
+            assert_eq!(wmde_unity_next(None, (0, true)), Some((0, true)));
+            // A tick that moved nothing must not put a broadcast on the bus.
+            assert_eq!(wmde_unity_next(Some((40, true)), (40, true)), None);
+            assert_eq!(
+                wmde_unity_next(Some((40, true)), (41, true)),
+                Some((41, true))
+            );
+            // The bar going out is a change of its own, at the same percentage.
+            assert_eq!(
+                wmde_unity_next(Some((40, true)), (40, false)),
+                Some((40, false))
+            );
+        }
     }
 }
 
