@@ -1355,11 +1355,18 @@ impl Application for App {
             if self.core.is_condensed() {
                 elements.push(
                     //TODO: selected state is not appearing different
-                    widget::button::icon(widget::icon::from_name("system-search-symbolic"))
-                        .on_press(Message::SearchClear)
-                        .padding(8)
-                        .selected(true)
-                        .into(),
+                    // WMDE: until it does, the hint is the only thing telling the user that
+                    // this magnifier clears the search instead of starting one. Header bar,
+                    // so the hint opens downwards.
+                    widget::tooltip(
+                        widget::button::icon(widget::icon::from_name("system-search-symbolic"))
+                            .on_press(Message::SearchClear)
+                            .padding(8)
+                            .selected(true),
+                        widget::text::body(fl!("clear-search")),
+                        widget::tooltip::Position::Bottom,
+                    )
+                    .into(),
                 );
             } else {
                 elements.push(
@@ -1373,19 +1380,27 @@ impl Application for App {
             }
         } else {
             elements.push(
-                widget::button::icon(widget::icon::from_name("system-search-symbolic"))
-                    .on_press(Message::SearchActivate)
-                    .padding(8)
-                    .into(),
+                widget::tooltip(
+                    widget::button::icon(widget::icon::from_name("system-search-symbolic"))
+                        .on_press(Message::SearchActivate)
+                        .padding(8),
+                    widget::text::body(fl!("search")),
+                    widget::tooltip::Position::Bottom,
+                )
+                .into(),
             );
         }
 
         if self.flags.kind.save() {
             elements.push(
-                widget::button::icon(widget::icon::from_name("folder-new-symbolic"))
-                    .on_press(Message::NewFolder)
-                    .padding(8)
-                    .into(),
+                widget::tooltip(
+                    widget::button::icon(widget::icon::from_name("folder-new-symbolic"))
+                        .on_press(Message::NewFolder)
+                        .padding(8),
+                    widget::text::body(fl!("new-folder")),
+                    widget::tooltip::Position::Bottom,
+                )
+                .into(),
             );
         }
 

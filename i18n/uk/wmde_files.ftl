@@ -413,3 +413,12 @@ status-items =
     }
 status-selected = { $selected } вибрано
 status-disk = { $total } | зайнято { $used } | вільно { $free }
+
+## Tooltips for icon-only buttons (address row, details pane, file chooser)
+previous-item = Попередній елемент
+next-item = Наступний елемент
+go-back = Назад
+go-forward = Уперед
+go-up = На рівень вище
+cancel-edit = Скасувати редагування
+clear-search = Очистити пошук

@@ -13,6 +13,7 @@ use cosmic::iced::{Alignment, Length};
 use cosmic::widget::{self, icon};
 use cosmic::{Element, cosmic_theme, theme};
 
+use crate::fl;
 use crate::mouse_area::MouseArea;
 
 /// Look up a sidebar icon by name.
@@ -154,11 +155,18 @@ pub fn drive<M: Clone + 'static>(
     match on_eject {
         Some(msg) => widget::row::with_children(vec![
             nav,
-            widget::button::custom(widget::icon::from_name("media-eject-symbolic").size(16))
-                .on_press(msg)
-                .padding(space_xxs)
-                .class(theme::Button::Icon)
-                .into(),
+            // WMDE: the eject glyph is the only unlabelled control in the sidebar, and what
+            // it does - unmount the drive - is worth spelling out. The drives group sits in
+            // the lower half of the list, so the hint opens upwards.
+            widget::tooltip(
+                widget::button::custom(widget::icon::from_name("media-eject-symbolic").size(16))
+                    .on_press(msg)
+                    .padding(space_xxs)
+                    .class(theme::Button::Icon),
+                widget::text::body(fl!("eject")),
+                widget::tooltip::Position::Top,
+            )
+            .into(),
         ])
         .align_y(Alignment::Center)
         .into(),

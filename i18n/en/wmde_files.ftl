@@ -417,3 +417,12 @@ status-items =
     }
 status-selected = { $selected } selected
 status-disk = { $total } | { $used } used | { $free } free
+
+## Tooltips for icon-only buttons (address row, details pane, file chooser)
+previous-item = Previous item
+next-item = Next item
+go-back = Back
+go-forward = Forward
+go-up = Up
+cancel-edit = Cancel editing
+clear-search = Clear search

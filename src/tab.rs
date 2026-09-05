@@ -2563,17 +2563,24 @@ impl Item {
     }
 
     pub fn preview_actions(&self) -> Element<'_, Message> {
+        // WMDE: both arrows are icon-only and sit at the top of the details pane, so the
+        // hint has to open downwards - the builder's `.tooltip()` would pin it to Top and
+        // push it out over the window edge.
         let row = widget::row::with_capacity(3)
             .align_y(Alignment::Center)
             .spacing(theme::spacing().space_xxs)
-            .push(
+            .push(widget::tooltip(
                 widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
                     .on_press(Message::ItemLeft),
-            )
-            .push(
+                widget::text::body(fl!("previous-item")),
+                widget::tooltip::Position::Bottom,
+            ))
+            .push(widget::tooltip(
                 widget::button::icon(widget::icon::from_name("go-next-symbolic"))
                     .on_press(Message::ItemRight),
-            );
+                widget::text::body(fl!("next-item")),
+                widget::tooltip::Position::Bottom,
+            ));
         row.into()
     }
 
@@ -5316,7 +5323,15 @@ impl Tab {
         if self.history_i > 0 && !self.history.is_empty() {
             prev_button = prev_button.on_press(Message::GoPrevious);
         }
-        row = row.push(prev_button);
+        // WMDE: the address row sits at the top of the window, so every hint in it opens
+        // downwards. The tooltip is a transparent wrapper, so the width counter `w` below is
+        // unaffected - but the button paddings it adds up are written out by hand here, so
+        // they must not be touched.
+        row = row.push(widget::tooltip(
+            prev_button,
+            widget::text::body(fl!("go-back")),
+            widget::tooltip::Position::Bottom,
+        ));
         w += f32::from(space_xxs).mul_add(2.0, 16.0);
 
         let mut next_button =
@@ -5326,15 +5341,21 @@ impl Tab {
         if self.history_i + 1 < self.history.len() {
             next_button = next_button.on_press(Message::GoNext);
         }
-        row = row.push(next_button);
+        row = row.push(widget::tooltip(
+            next_button,
+            widget::text::body(fl!("go-forward")),
+            widget::tooltip::Position::Bottom,
+        ));
         w += f32::from(space_xxs).mul_add(2.0, 16.0);
 
-        row = row.push(
+        row = row.push(widget::tooltip(
             widget::button::custom(widget::icon::from_name("go-up-symbolic").size(16))
                 .padding(space_xxs)
                 .class(theme::Button::Icon)
                 .on_press(Message::LocationUp),
-        );
+            widget::text::body(fl!("go-up")),
+            widget::tooltip::Position::Bottom,
+        ));
         w += f32::from(space_xxs).mul_add(2.0, 16.0);
 
         row = row.push(widget::space::horizontal().width(Length::Fixed(space_s.into())));
@@ -5378,14 +5399,16 @@ impl Tab {
                 );
             }
             if let Some(text_input) = text_input {
-                row = row.push(
+                row = row.push(widget::tooltip(
                     widget::button::custom(
                         widget::icon::from_name("window-close-symbolic").size(16),
                     )
                     .on_press(Message::EditLocation(None))
                     .padding(space_xxs)
                     .class(theme::Button::Icon),
-                );
+                    widget::text::body(fl!("cancel-edit")),
+                    widget::tooltip::Position::Bottom,
+                ));
                 let mut popover =
                     widget::popover(text_input).position(widget::popover::Position::Bottom);
                 if let Some(completions) = &edit_location.completions
@@ -5597,12 +5620,14 @@ impl Tab {
         field_row = field_row.extend(children);
         // WMDE: reload button at the right end of the address field (Win11-style)
         field_row = field_row.push(widget::space::horizontal().width(Length::Fill));
-        field_row = field_row.push(
+        field_row = field_row.push(widget::tooltip(
             widget::button::custom(widget::icon::from_name("view-refresh-symbolic").size(16))
                 .padding(space_xxxs)
                 .class(theme::Button::Icon)
                 .on_press(Message::Reload),
-        );
+            widget::text::body(fl!("reload-folder")),
+            widget::tooltip::Position::Bottom,
+        ));
         let crumbs = widget::container(field_row)
         .class(theme::Container::custom(|theme| widget::container::Style {
             background: Some(crate::app::wmde_surface(theme).into()),
