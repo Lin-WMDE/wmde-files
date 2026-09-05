@@ -102,7 +102,7 @@ const PREVIEW_WINDOW: WindowPreset =
 /// the first one runs adds a row rather than a window; no maximize, because there is nothing
 /// there to fill a screen with.
 const OPERATIONS_WINDOW: WindowPreset =
-    WindowPreset::utility(Size::new(520.0, 260.0), Size::new(380.0, 160.0));
+    WindowPreset::utility(Size::new(520.0, 220.0), Size::new(380.0, 160.0));
 
 /// WMDE: how long an operation has to run before it is worth a window of its own. Copying a
 /// single small file finishes well inside this, and the window never appears.

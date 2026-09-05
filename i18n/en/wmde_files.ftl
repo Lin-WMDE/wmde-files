@@ -35,15 +35,7 @@ modified = Modified
 trashed-on = Trashed
 size = Size
 
-# Progress footer
-operations-running = {$running} {$running ->
-    [one] operation
-    *[other] operations
-  } running ({$percent}%)...
-operations-running-finished = {$running} {$running ->
-    [one] operation
-    *[other] operations
-  } running ({$percent}%), {$finished} finished...
+# WMDE: the pause and resume buttons of an operation block in the operations window.
 pause = Pause
 resume = Resume
 

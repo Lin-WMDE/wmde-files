@@ -217,16 +217,6 @@ icon-size-and-spacing = Розмір піктограм і відстань мі
 icon-size = Розмір піктограм
 grid-spacing = Відстань між піктограмами
 trashed-on = У смітнику
-operations-running =
-    { $running } { $running ->
-        [one] операція
-       *[other] операції
-    } виконується ({ $percent }%)...
-operations-running-finished =
-    { $running } { $running ->
-        [one] операція
-       *[other] операціі
-    } виконується ({ $percent }%), { $finished } завершено...
 pause = Призупинити
 resume = Продовжити
 create-archive = Створити архів
