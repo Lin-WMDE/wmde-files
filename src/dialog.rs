@@ -1266,22 +1266,6 @@ impl Application for App {
     fn dialog(&self) -> Option<Element<'_, Message>> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::spacing();
 
-        //TODO: should gallery view just be a dialog?
-        if self.tab.gallery {
-            return Some(
-                widget::column::with_children([
-                    self.tab.gallery_view().map(Message::TabMessage),
-                    // Draw button row as part of the overlay
-                    widget::container(self.button_view())
-                        .width(Length::Fill)
-                        .padding(space_xxs)
-                        .class(theme::Container::WindowBackground)
-                        .into(),
-                ])
-                .into(),
-            );
-        }
-
         let dialog_page = self.dialog_pages.front()?;
 
         let dialog = match dialog_page {
@@ -1453,12 +1437,6 @@ impl Application for App {
     }
 
     fn on_escape(&mut self) -> Task<Message> {
-        if self.tab.gallery {
-            // Close gallery if open
-            self.tab.gallery = false;
-            return Task::none();
-        }
-
         if self.tab.location_context_menu_index.is_some() {
             self.tab.location_context_menu_index = None;
             return Task::none();

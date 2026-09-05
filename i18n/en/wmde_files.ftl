@@ -394,7 +394,6 @@ grid-view = Grid view
 list-view = List view
 show-hidden-files = Show hidden files
 list-directories-first = List directories first
-gallery-preview = Gallery preview
 menu-settings = Settings...
 menu-about = About WMDE Files...
 

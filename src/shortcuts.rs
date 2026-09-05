@@ -47,7 +47,13 @@ pub enum KeyBindAction {
     Cut,
     Delete,
     EditLocation,
-    Gallery,
+    /// WMDE: retired with the gallery mode, which moved out to wmde-photos. The variant is
+    /// kept because cosmic-config stores the whole binding map as one value: an unknown name
+    /// fails the entire key, so a person with any rebinding at all would lose every one of
+    /// them. It resolves to no action and is absent from the shortcuts declaration, so the
+    /// settings page never offers it.
+    #[serde(rename = "Gallery")]
+    Retired,
     HistoryNext,
     HistoryPrevious,
     ItemDown,
@@ -101,7 +107,7 @@ impl KeyBindAction {
             Self::Cut => Action::Cut,
             Self::Delete => Action::Delete,
             Self::EditLocation => Action::EditLocation,
-            Self::Gallery => Action::Gallery,
+            Self::Retired => return None,
             Self::HistoryNext => Action::HistoryNext,
             Self::HistoryPrevious => Action::HistoryPrevious,
             Self::ItemDown => Action::ItemDown,
@@ -224,7 +230,6 @@ pub fn fallback_shortcuts() -> Shortcuts {
     bind!([Ctrl, Shift], "N", NewFolder);
     bind!([], "Enter", Open);
     bind!([Ctrl], "Space", Preview);
-    bind!([], "Space", Gallery);
 
     bind!([Ctrl], "H", ToggleShowHidden);
     bind!([Ctrl], "A", SelectAll);

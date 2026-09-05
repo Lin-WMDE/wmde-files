@@ -474,15 +474,6 @@ pub fn dialog_menu(
     };
     let in_trash = tab.location.is_trash();
 
-    let mut selected_gallery = 0;
-    if let Some(items) = tab.items_opt() {
-        for item in items {
-            if item.selected && item.can_gallery() {
-                selected_gallery += 1;
-            }
-        }
-    }
-
     MenuBar::new(vec![
         menu::Tree::with_children(
             Element::from(
@@ -587,12 +578,6 @@ pub fn dialog_menu(
                         Action::ToggleFoldersFirst,
                     ),
                     menu::Item::CheckBox(fl!("show-details"), None, show_details, Action::Preview),
-                    menu::Item::Divider,
-                    menu_button_optional(
-                        fl!("gallery-preview"),
-                        Action::Gallery,
-                        selected_gallery > 0,
-                    ),
                 ],
             ),
         ),
@@ -626,16 +611,12 @@ pub fn menu_bar<'a>(
 
     let mut selected_dir = 0;
     let mut selected = 0;
-    let mut selected_gallery = 0;
     if let Some(items) = tab_opt.and_then(|tab| tab.items_opt()) {
         for item in items {
             if item.selected {
                 selected += 1;
                 if item.metadata.is_dir() {
                     selected_dir += 1;
-                }
-                if item.can_gallery() {
-                    selected_gallery += 1;
                 }
             }
         }
@@ -751,12 +732,6 @@ pub fn menu_bar<'a>(
                             None,
                             config.show_details,
                             Action::Preview,
-                        ),
-                        menu::Item::Divider,
-                        menu_button_optional(
-                            fl!("gallery-preview"),
-                            Action::Gallery,
-                            selected_gallery > 0,
                         ),
                         menu::Item::Divider,
                         menu::Item::Button(fl!("menu-settings"), None, Action::Settings),

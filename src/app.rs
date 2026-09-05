@@ -182,7 +182,6 @@ pub enum Action {
     ExecEntryAction(usize),
     ExtractHere,
     ExtractTo,
-    Gallery,
     HistoryNext,
     HistoryPrevious,
     ItemDown,
@@ -257,7 +256,6 @@ impl Action {
             Self::ExecEntryAction(action) => {
                 Message::TabMessage(entity_opt, tab::Message::ExecEntryAction(None, *action))
             }
-            Self::Gallery => Message::TabMessage(entity_opt, tab::Message::GalleryToggle),
             Self::HistoryNext => Message::TabMessage(entity_opt, tab::Message::GoNext),
             Self::HistoryPrevious => Message::TabMessage(entity_opt, tab::Message::GoPrevious),
             Self::ItemDown => Message::TabMessage(entity_opt, tab::Message::ItemDown),
@@ -3726,14 +3724,6 @@ impl Application for App {
             return task;
         }
 
-        // Close gallery mode if open
-        if let Some(tab) = self.tab_model.data_mut::<Tab>(entity)
-            && tab.gallery
-        {
-            tab.gallery = false;
-            return Task::none();
-        }
-
         // Close menus and context panes in order per message
         // Why: It'd be weird to close everything all at once
         // Usually, the Escape key (for example) closes menus and panes one by one instead
@@ -6665,16 +6655,6 @@ impl Application for App {
     }
 
     fn dialog(&self) -> Option<Element<'_, Message>> {
-        //TODO: should gallery view just be a dialog?
-        let entity = self.tab_model.active();
-        if let Some(tab) = self.tab_model.data::<Tab>(entity)
-            && tab.gallery
-        {
-            return Some(
-                tab.gallery_view()
-                    .map(move |x| Message::TabMessage(Some(entity), x)),
-            );
-        }
         let dialog_page = self.dialog_pages.front()?;
 
         let cosmic_theme::Spacing {

@@ -101,11 +101,6 @@
                     defaults: [(modifiers: [Ctrl], key: "Space")],
                 ),
                 (
-                    action: "Gallery",
-                    label: { "": "Gallery", "uk": "Галерея" },
-                    defaults: [(modifiers: [], key: "Space")],
-                ),
-                (
                     action: "NewFolder",
                     label: { "": "New folder", "uk": "Нова тека" },
                     defaults: [(modifiers: [Ctrl, Shift], key: "N")],

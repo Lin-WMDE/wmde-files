@@ -56,9 +56,8 @@ use crate::config::{
     ThumbCfg,
 };
 use crate::dialog::DialogKind;
-use crate::large_image::{
-    LargeImageManager, decode_large_image, exceeds_memory_limit, should_use_dedicated_worker,
-    should_use_tiling,
+use crate::thumb_budget::{
+    exceeds_memory_limit, should_use_dedicated_worker, should_use_tiling,
 };
 use crate::localize::{LANGUAGE_SORTER, LOCALE};
 use crate::mime_icon::{mime_for_path, mime_icon};
@@ -1933,10 +1932,6 @@ pub enum Message {
     EmptyTrash,
     #[cfg(feature = "desktop")]
     ExecEntryAction(Option<PathBuf>, usize),
-    Gallery(bool),
-    GalleryPrevious,
-    GalleryNext,
-    GalleryToggle,
     GoNext,
     GoPrevious,
     ItemDown,
@@ -1984,7 +1979,6 @@ pub enum Message {
     Checksums(PathBuf, ChecksumState),
     CalculateChecksums(PathBuf),
     CopyChecksum(String),
-    ImageDecoded(PathBuf, u32, u32, Vec<u8>, Option<(u32, u32)>, u64), // path, width, height, pixels, display_size, generation
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -2528,10 +2522,6 @@ impl Item {
         self.location_opt.as_ref()?.path_opt()
     }
 
-    pub fn can_gallery(&self) -> bool {
-        self.mime.type_() == mime::IMAGE || self.mime.type_() == mime::TEXT
-    }
-
     pub fn file_metadata(&self) -> Option<Metadata> {
         match &self.metadata {
             ItemMetadata::Path { metadata, .. } => Some(metadata.clone()),
@@ -2559,7 +2549,7 @@ impl Item {
             ItemThumbnail::NotImage => icon,
             ItemThumbnail::Image(handle, _original_dims) => {
                 // Preview pane: ALWAYS show thumbnail for instant, responsive UI
-                // Full resolution loading happens in gallery mode
+                // WMDE: full resolution is wmde-photos' business, not the manager's
                 widget::image(handle.clone()).into()
             }
             ItemThumbnail::Svg(handle) => widget::svg(handle.clone()).into(),
@@ -2573,7 +2563,7 @@ impl Item {
     }
 
     pub fn preview_actions(&self) -> Element<'_, Message> {
-        let mut row = widget::row::with_capacity(3)
+        let row = widget::row::with_capacity(3)
             .align_y(Alignment::Center)
             .spacing(theme::spacing().space_xxs)
             .push(
@@ -2584,14 +2574,6 @@ impl Item {
                 widget::button::icon(widget::icon::from_name("go-next-symbolic"))
                     .on_press(Message::ItemRight),
             );
-        if self.can_gallery()
-            && let Some(_path) = self.path_opt()
-        {
-            row = row.push(
-                widget::button::icon(widget::icon::from_name("view-fullscreen-symbolic"))
-                    .on_press(Message::Gallery(true)),
-            );
-        }
         row.into()
     }
 
@@ -2974,7 +2956,6 @@ pub struct Tab {
     pub thumb_config: ThumbCfg,
     pub sort_name: HeadingOptions,
     pub sort_direction: bool,
-    pub gallery: bool,
     pub(crate) parent_item_opt: Option<Box<Item>>,
     pub(crate) items_opt: Option<Vec<Item>>,
     pub dnd_hovered: Option<(Location, Instant)>,
@@ -2989,7 +2970,6 @@ pub struct Tab {
     time_formatter: DateTimeFormatter<fieldsets::T>,
     watch_drag: bool,
     window_id: Option<window::Id>,
-    large_image_manager: LargeImageManager,
 }
 
 async fn calculate_dir_size(path: &Path, controller: Controller) -> Result<u64, OperationError> {
@@ -3160,7 +3140,6 @@ impl Tab {
             thumb_config,
             sort_name,
             sort_direction,
-            gallery: false,
             parent_item_opt: None,
             items_opt: None,
             scrollable_id,
@@ -3175,7 +3154,6 @@ impl Tab {
             time_formatter: time_formatter(config.military_time),
             watch_drag: true,
             window_id,
-            large_image_manager: LargeImageManager::new(),
         }
     }
 
@@ -3609,77 +3587,6 @@ impl Tab {
             });
         }
         last
-    }
-
-    fn trigger_async_decode(&mut self) -> Vec<Command> {
-        // Only trigger decode in gallery mode for the currently selected image
-        if !self.gallery {
-            return Vec::new();
-        }
-
-        let Some(index) = self.select_focus else {
-            return Vec::new();
-        };
-
-        let Some(items) = &self.items_opt else {
-            return Vec::new();
-        };
-
-        let Some(item) = items.get(index) else {
-            return Vec::new();
-        };
-
-        let Some(ItemThumbnail::Image(_, original_dims)) = &item.thumbnail_opt else {
-            return Vec::new();
-        };
-
-        if let Some((w, h)) = original_dims
-            && !should_use_tiling(*w, *h)
-        {
-            return Vec::new();
-        }
-
-        let Some(path) = item.path_opt() else {
-            return Vec::new();
-        };
-
-        // Clone path to avoid borrow checker issues
-        let path = path.to_path_buf();
-
-        // Get display size for adaptive resolution
-        let display_dimensions = self
-            .size_opt
-            .get()
-            .map(|size| (size.width as u32, size.height as u32));
-
-        // Try to decode the image using LargeImageManager with adaptive resolution
-        let (should_decode, target_dimensions, generation) = self
-            .large_image_manager
-            .try_decode(&path, display_dimensions);
-        if should_decode {
-            vec![Command::Iced(
-                cosmic::iced::Task::perform(
-                    decode_large_image(path, target_dimensions),
-                    move |result| {
-                        result
-                            .map(|(path, width, height, pixels)| {
-                                Message::ImageDecoded(
-                                    path,
-                                    width,
-                                    height,
-                                    pixels,
-                                    display_dimensions,
-                                    generation,
-                                )
-                            })
-                            .unwrap_or_else(|| Message::AutoScroll(None))
-                    },
-                )
-                .into(),
-            )]
-        } else {
-            Vec::new()
-        }
     }
 
     pub fn change_location(&mut self, location: &Location, history_i_opt: Option<usize>) {
@@ -4162,72 +4069,6 @@ impl Tab {
                     None => log::warn!("Invalid desktop entry path passed to ExecEntryAction"),
                 }
             }
-            Message::Gallery(gallery) => {
-                self.gallery = gallery;
-
-                if gallery {
-                    commands.extend(self.trigger_async_decode());
-                }
-            }
-            Message::GalleryPrevious | Message::GalleryNext => {
-                let mut pos_opt = None;
-                if let Some(mut indices) = self.column_sort() {
-                    if matches!(message, Message::GalleryPrevious) {
-                        indices.reverse();
-                    }
-                    let mut found = false;
-                    for (index, item) in indices {
-                        if self.select_focus.is_none() {
-                            found = true;
-                        }
-                        if self.select_focus == Some(index) {
-                            found = true;
-                            continue;
-                        }
-                        if found && item.can_gallery() {
-                            pos_opt = item.pos_opt.get();
-                            if pos_opt.is_some() {
-                                break;
-                            }
-                        }
-                    }
-                }
-                if let Some((row, col)) = pos_opt {
-                    // Should mod_shift be available?
-                    self.select_position(row, col, mod_shift);
-
-                    commands.extend(self.trigger_async_decode());
-                }
-                if let Some(offset) = self.select_focus_scroll() {
-                    commands.push(Command::Iced(
-                        scrollable::scroll_to(
-                            self.scrollable_id.clone(),
-                            AbsoluteOffset {
-                                x: Some(offset.x),
-                                y: Some(offset.y),
-                            },
-                        )
-                        .into(),
-                    ));
-                }
-                if let Some(id) = self.select_focus_id() {
-                    commands.push(Command::Iced(widget::button::focus(id).into()));
-                }
-            }
-            Message::GalleryToggle => {
-                if let Some(indices) = self.column_sort() {
-                    for (_, item) in &indices {
-                        if item.selected && item.can_gallery() {
-                            self.gallery = !self.gallery;
-
-                            if self.gallery {
-                                commands.extend(self.trigger_async_decode());
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
             Message::GoNext => {
                 if let Some(history_i) = self.history_i.checked_add(1)
                     && let Some(location) = self.history.get(history_i)
@@ -4248,8 +4089,6 @@ impl Tab {
                 self.dehighlight_all();
                 if let Some(edit_location) = &mut self.edit_location {
                     edit_location.select(true);
-                } else if self.gallery {
-                    commands.append(&mut self.update(Message::GalleryNext, modifiers));
                 } else {
                     if let Some((row, col)) =
                         self.select_focus_pos_opt().or(self.select_last_pos_opt())
@@ -4376,9 +4215,10 @@ impl Tab {
             }
             Message::ItemLeft => {
                 self.dehighlight_all();
-                if self.gallery {
-                    commands.append(&mut self.update(Message::GalleryPrevious, modifiers));
-                } else {
+                // WMDE: the gallery mode moved out to wmde-photos. The bare block is kept on
+                // purpose - dedenting the body would turn every future upstream change in this
+                // arm into a merge conflict, and the block costs nothing at runtime.
+                {
                     if let Some((row, col)) =
                         self.select_focus_pos_opt().or(self.select_first_pos_opt())
                     {
@@ -4435,9 +4275,10 @@ impl Tab {
             }
             Message::ItemRight => {
                 self.dehighlight_all();
-                if self.gallery {
-                    commands.append(&mut self.update(Message::GalleryNext, modifiers));
-                } else {
+                // WMDE: the gallery mode moved out to wmde-photos. The bare block is kept on
+                // purpose - dedenting the body would turn every future upstream change in this
+                // arm into a merge conflict, and the block costs nothing at runtime.
+                {
                     if let Some((row, col)) =
                         self.select_focus_pos_opt().or(self.select_last_pos_opt())
                     {
@@ -4479,8 +4320,6 @@ impl Tab {
                 self.dehighlight_all();
                 if let Some(edit_location) = &mut self.edit_location {
                     edit_location.select(false);
-                } else if self.gallery {
-                    commands.append(&mut self.update(Message::GalleryPrevious, modifiers));
                 } else {
                     if let Some((row, col)) =
                         self.select_focus_pos_opt().or(self.select_first_pos_opt())
@@ -4943,18 +4782,6 @@ impl Tab {
                     }
                 }
             }
-            Message::ImageDecoded(path, width, height, pixels, display_size, generation) => {
-                // Create handle from pre-decoded RGBA data (fast!)
-                let handle = widget::image::Handle::from_rgba(width, height, pixels);
-
-                // Store decoded image handle if generation still matches (not superseded)
-                self.large_image_manager.store_decoded_with_generation(
-                    path,
-                    handle,
-                    display_size,
-                    generation,
-                );
-            }
             Message::ToggleSort(heading_option) => {
                 if !matches!(self.location, Location::Search(..)) {
                     let heading_sort = if self.sort_name == heading_option {
@@ -5371,174 +5198,6 @@ impl Tab {
             });
         }
         container.into()
-    }
-
-    pub fn gallery_view(&self) -> Element<'_, Message> {
-        let cosmic_theme::Spacing {
-            space_xxs,
-            space_xs,
-            space_m,
-            ..
-        } = theme::spacing();
-
-        //TODO: display error messages when image not found?
-        let mut name_opt = None;
-        let mut element_opt: Option<Element<Message>> = None;
-        if let Some(index) = self.select_focus
-            && let Some(items) = &self.items_opt
-            && let Some(item) = items.get(index)
-        {
-            name_opt = Some(widget::text::heading(&item.display_name));
-            match item
-                .thumbnail_opt
-                .as_ref()
-                .unwrap_or(&ItemThumbnail::NotImage)
-            {
-                ItemThumbnail::NotImage => {}
-                ItemThumbnail::Image(handle, original_dims) => {
-                    // Determine which image to show based on async decode state
-                    let mut is_loading = false;
-                    let mut error_msg_opt = None;
-                    let image_handle = if let Some(path) = item.path_opt() {
-                        if let Some(error_msg) = self.large_image_manager.get_error(path) {
-                            error_msg_opt = Some(error_msg.clone());
-                            handle.clone()
-                        } else if self.large_image_manager.is_decoding(path) {
-                            // Currently decoding (initial or re-decode) --> show cached/thumbnail with loading indicator
-                            is_loading = true;
-                            // Use decoded handle if available (re-decode), otherwise thumbnail (initial decode)
-                            self.large_image_manager
-                                .get_decoded(path)
-                                .cloned()
-                                .unwrap_or_else(|| handle.clone())
-                        } else if let Some(decoded_handle) =
-                            self.large_image_manager.get_decoded(path)
-                        {
-                            // Decoded and not currently decoding --> use it
-                            decoded_handle.clone()
-                        } else if let Some((w, h)) = original_dims {
-                            // Check if image needs tiling
-                            if should_use_tiling(*w, *h) {
-                                // Large image --> show thumbnail only
-                                handle.clone()
-                            } else {
-                                // Normal-sized image --> load full resolution directly
-                                widget::image::Handle::from_path(path)
-                            }
-                        } else {
-                            // No dimensions available --> show thumbnail
-                            handle.clone()
-                        }
-                    } else {
-                        handle.clone()
-                    };
-
-                    let content: cosmic::Element<'_, Message> =
-                        if let Some(error_msg) = error_msg_opt {
-                            widget::column::with_capacity(2)
-                                .push(widget::image(image_handle))
-                                .push(widget::text(format!("⚠ {}", error_msg)).size(12))
-                                .padding(space_xs)
-                                .align_x(cosmic::iced::Alignment::Center)
-                                .into()
-                        } else if is_loading {
-                            widget::column::with_capacity(2)
-                                .push(widget::image(image_handle))
-                                .push(widget::text("Loading higher resolution...").size(12))
-                                .padding(space_xs)
-                                .align_x(cosmic::iced::Alignment::Center)
-                                .into()
-                        } else {
-                            //TODO: use widget::image::viewer, when its zoom can be reset
-                            crate::load_image::loaded_image(image_handle).into()
-                        };
-
-                    element_opt = Some(widget::container(content).center(Length::Fill).into());
-                }
-                ItemThumbnail::Svg(handle) => {
-                    element_opt = Some(
-                        widget::svg(handle.clone())
-                            .width(Length::Fill)
-                            .height(Length::Fill)
-                            .into(),
-                    );
-                }
-                ItemThumbnail::Text(text) => {
-                    element_opt = Some(
-                        widget::container(
-                            widget::text_editor::text_editor(text)
-                                .padding(space_xxs)
-                                .style(text_editor_class),
-                        )
-                        .center(Length::Fill)
-                        .into(),
-                    );
-                }
-            }
-        }
-
-        let mut column = widget::column::with_capacity(2);
-        column = column.push(widget::space::vertical().height(Length::Fixed(space_m.into())));
-        {
-            let mut row = widget::row::with_capacity(5).align_y(Alignment::Center);
-            row = row.push(widget::space::horizontal());
-            if let Some(name) = name_opt {
-                row = row.push(name);
-            }
-            row = row.push(widget::space::horizontal());
-            row = row.push(
-                widget::button::icon(widget::icon::from_name("window-close-symbolic"))
-                    .class(theme::Button::Standard)
-                    .on_press(Message::Gallery(false)),
-            );
-            row = row.push(widget::space::horizontal().width(Length::Fixed(space_m.into())));
-            // This mouse area provides window drag while the header bar is hidden
-            let mouse_area = mouse_area::MouseArea::new(row)
-                .on_press(|_| Message::WindowDrag)
-                .on_double_click(|_| Message::WindowToggleMaximize);
-            column = column.push(mouse_area);
-        }
-        {
-            let mut row = widget::row::with_capacity(7).align_y(Alignment::Center);
-            row = row.push(widget::space::horizontal().width(Length::Fixed(space_m.into())));
-            row = row.push(
-                widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
-                    .padding(space_xs)
-                    .class(theme::Button::Standard)
-                    .on_press(Message::GalleryPrevious),
-            );
-            row = row.push(widget::space::horizontal().width(Length::Fixed(space_xxs.into())));
-            if let Some(element) = element_opt {
-                row = row.push(element);
-            } else {
-                //TODO: what to do when no image?
-                row = row.push(space::horizontal().width(Length::Fill));
-                row = row.push(space::vertical().height(Length::Fill));
-            }
-            row = row.push(widget::space::horizontal().width(Length::Fixed(space_xxs.into())));
-            row = row.push(
-                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                    .padding(space_xs)
-                    .class(theme::Button::Standard)
-                    .on_press(Message::GalleryNext),
-            );
-            row = row.push(widget::space::horizontal().width(Length::Fixed(space_m.into())));
-            column = column.push(row);
-        }
-
-        widget::container(column)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(|theme| {
-                let cosmic = theme.cosmic();
-                let mut bg = cosmic.bg_color();
-                bg.alpha = 0.75;
-                widget::container::Style {
-                    background: Some(Color::from(bg).into()),
-                    ..Default::default()
-                }
-            })
-            .into()
     }
 
     // WMDE: the sort-column header row, rendered in the list BODY above the items so the
