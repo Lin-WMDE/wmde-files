@@ -331,6 +331,9 @@ rename-confirm = Ganti nama
 checksum = { $kind } checksum
 calculate = Hitung
 error = Galat
+sidebar-label = Label bilah sisi
+search-application = Cari berdasarkan nama aplikasi
+change-sidebar-label = Ubah label bilah sisi
 
 # WMDE additions (Win11-style chrome)
 search = Cari

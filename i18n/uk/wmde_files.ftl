@@ -399,6 +399,9 @@ mixed = Змішано
 checksum = контрольна сума { $kind }
 calculate = Вирахувати
 error = Помилка
+sidebar-label = Назва бічної панелі
+search-application = Пошук за назвою застосунку
+change-sidebar-label = Змінити назву бічної панелі
 
 # WMDE additions (Win11-style chrome)
 search = Пошук

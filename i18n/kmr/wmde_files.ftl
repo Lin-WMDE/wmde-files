@@ -331,6 +331,9 @@ type-to-search-select = Pel an peldanka yekem a lihevhatî hildibijêre
 calculate = Bijmêre
 error = Şaşetî
 checksum = Tevahiya { $kind } kontrol bike
+sidebar-label = Nîşanka benda kêlekê
+search-application = Li gorî navê sepanê bigere
+change-sidebar-label = Nîşanka benda kêlekê biguhêrîne
 
 # WMDE additions (Win11-style chrome)
 search = Lêgerîn

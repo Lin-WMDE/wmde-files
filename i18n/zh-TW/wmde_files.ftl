@@ -396,6 +396,9 @@ rename-confirm = 重新命名
 checksum = { $kind } 核對和
 calculate = 計算
 error = 錯誤
+sidebar-label = 側邊欄標籤
+search-application = 依應用程式名稱搜尋
+change-sidebar-label = 變更側邊欄標籤
 
 # WMDE additions (Win11-style chrome)
 search = 搜尋
