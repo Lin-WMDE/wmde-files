@@ -7642,6 +7642,11 @@ impl Application for App {
                     cosmic::Action::Cosmic(cosmic) => Message::Cosmic(cosmic),
                     cosmic::Action::Surface(action) => Message::Surface(action),
                     cosmic::Action::None => Message::None,
+                    // WMDE: libcosmic's single-instance feature adds DbusActivation. This
+                    // crate is also the file dialog library of wmde-edit, which turns that
+                    // feature on for the whole graph; the desktop view never produces it.
+                    #[allow(unreachable_patterns)]
+                    _ => Message::None,
                 });
             }
         };
