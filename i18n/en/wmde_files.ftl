@@ -325,6 +325,8 @@ error = Error
 settings = Settings
 single-click = Single click to open
 show-recents = Recents folder in the sidebar
+automount = Mount removable drives when plugged in
+automount-connected = Removable drive connected
 
 ### Appearance
 appearance = Appearance

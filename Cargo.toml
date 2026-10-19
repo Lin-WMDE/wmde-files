@@ -142,9 +142,12 @@ gvfs = ["dep:gio", "dep:glib"]
 io-uring = ["compio/io-uring"]
 jemalloc = ["dep:tikv-jemallocator"]
 notify = ["dep:notify-rust"]
+# WMDE: the notification of a volume mounted on its own, with its Open button. On only in
+# `wmde-files-applet`, the one process that automounts; it talks to the notification daemon
+# over the zbus 5 that `cosmic-config` already links in, instead of notify-rust.
+automount = ["gvfs", "dep:zbus"]
 # WMDE: the Unity progress broadcast. Off in `wmde-files-applet`: the desktop-icons process
-# never starts the sender (`Mode::Desktop`), and it already pins zbus 4 of its own, so linking
-# zbus 5 next to it would grow the longest-lived binary of the stack for nothing.
+# never starts the sender (`Mode::Desktop`), so the module would be dead code there.
 unity = ["dep:zbus"]
 wayland = ["libcosmic/wayland", "dep:cctk", "dep:wayland-client"]
 wgpu = ["libcosmic/wgpu"]

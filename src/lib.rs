@@ -14,6 +14,8 @@ use crate::tab::Location;
 
 pub mod app;
 mod archive;
+#[cfg(feature = "automount")]
+mod automount_notify;
 pub mod channel;
 pub mod clipboard;
 pub mod config;

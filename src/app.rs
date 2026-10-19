@@ -403,6 +403,8 @@ pub enum Message {
     ModifiersChanged(window::Id, Modifiers),
     MounterItems(MounterKey, MounterItems),
     MountResult(MounterKey, MounterItem, Result<bool, String>),
+    /// WMDE: a volume plugged in during the session was mounted on its own.
+    Automounted(String, PathBuf),
     Mouse(window::Id, mouse::Button),
     MoveTo(Option<Entity>),
     MoveToResult(DialogResult),
@@ -481,6 +483,7 @@ pub enum Message {
     SearchInput(String),
     SetShowDetails(bool),
     SetShowRecents(bool),
+    SetAutomount(bool),
     SetTypeToSearch(TypeToSearch),
     SystemThemeModeChange,
     Size(window::Id, Size),
@@ -1800,6 +1803,14 @@ impl App {
     }
 
     fn update_config(&mut self) -> Task<Message> {
+        // WMDE: removable volumes are mounted by the desktop layer alone - it lives for the
+        // whole session, and a second process would mount the same volume again. A switch
+        // flipped in the settings of a window reaches it through the config watch.
+        if matches!(self.mode, Mode::Desktop) {
+            for mounter in MOUNTERS.values() {
+                mounter.automount(self.config.automount);
+            }
+        }
         self.update_key_binds();
         self.update_nav_model();
         // Tabs are collected first to placate the borrowck
@@ -2637,6 +2648,10 @@ impl App {
                 .add({
                     settings::item::builder(fl!("show-recents"))
                         .toggler(self.config.show_recents, Message::SetShowRecents)
+                })
+                .add({
+                    settings::item::builder(fl!("automount"))
+                        .toggler(self.config.automount, Message::SetAutomount)
                 })
                 .into(),
         ])
@@ -4433,6 +4448,12 @@ impl Application for App {
 
                 return Task::batch(commands);
             }
+            Message::Automounted(name, path) => {
+                #[cfg(feature = "automount")]
+                return iced::Task::future(crate::automount_notify::show(name, path)).discard();
+                #[cfg(not(feature = "automount"))]
+                log::info!("{name} mounted at {}", path.display());
+            }
             Message::MountResult(mounter_key, item, res) => match res {
                 Ok(true) => {
                     log::info!("connected to {item:?}");
@@ -5322,6 +5343,10 @@ impl Application for App {
             }
             Message::SetShowRecents(show_recents) => {
                 config_set!(show_recents, show_recents);
+                return self.update_config();
+            }
+            Message::SetAutomount(automount) => {
+                config_set!(automount, automount);
                 return self.update_config();
             }
             Message::SetTypeToSearch(type_to_search) => {
@@ -8030,6 +8055,7 @@ impl Application for App {
                     MounterMessage::NetworkResult(uri, res) => {
                         Message::NetworkResult(key, uri, res)
                     }
+                    MounterMessage::Automounted(name, path) => Message::Automounted(name, path),
                 })
         }));
 

@@ -207,6 +207,9 @@ impl State {
 #[serde(default)]
 pub struct Config {
     pub app_theme: AppTheme,
+    /// WMDE: mount removable volumes as they are plugged in, and those plugged in before
+    /// sign-in when the session starts. Acted on by the desktop layer alone.
+    pub automount: bool,
     pub dialog: DialogConfig,
     pub desktop: DesktopConfig,
     pub context_actions: Vec<ContextActionPreset>,
@@ -266,6 +269,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             app_theme: AppTheme::System,
+            automount: true,
             desktop: DesktopConfig::default(),
             dialog: DialogConfig::default(),
             context_actions: Vec::new(),

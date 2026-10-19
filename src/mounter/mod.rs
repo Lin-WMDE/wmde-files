@@ -108,6 +108,9 @@ pub enum MounterMessage {
     MountResult(MounterItem, Result<bool, String>),
     NetworkAuth(String, MounterAuth, mpsc::Sender<MounterAuth>),
     NetworkResult(String, Result<bool, String>),
+    /// WMDE: a volume plugged in during the session was mounted on its own; its name and
+    /// mount directory.
+    Automounted(String, PathBuf),
 }
 
 pub trait Mounter: Send + Sync {
@@ -119,6 +122,11 @@ pub trait Mounter: Send + Sync {
     fn dir_info(&self, uri: &str) -> Option<(String, String, Option<PathBuf>)>;
     fn unmount(&self, item: MounterItem) -> Task<()>;
     fn subscription(&self) -> Subscription<MounterMessage>;
+    /// WMDE: whether removable volumes are mounted as they are plugged in. Only the desktop
+    /// layer calls it: every process has its own mounter, and two of them would mount the
+    /// same volume twice. The first call that turns it on also mounts the volumes plugged in
+    /// before it; later calls only change what happens to the next ones.
+    fn automount(&self, enabled: bool);
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

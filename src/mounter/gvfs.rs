@@ -8,6 +8,7 @@ use std::cell::Cell;
 use std::future::pending;
 use std::hash::Hash;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -340,6 +341,70 @@ fn dir_info(uri: &str) -> Result<(String, String, Option<PathBuf>), glib::Error>
     Ok((resolved_uri, info.display_name().into(), file.path()))
 }
 
+/// Whether a volume is one to mount on its own, without the user asking.
+///
+/// - `should_automount` is udisks' `HintAuto` as gvfs passes it on: true for USB, FireWire,
+///   SDIO and optical drives, and for a volume plugged in moments ago or found when the
+///   volume monitor started; false for a partition that appeared long after its medium,
+///   which means the medium was repartitioned.
+/// - `removable` is the drive's own word that the user may take it away. Internal disks and
+///   loop devices are never mounted on their own, whatever their hint says.
+const fn automount_wanted(
+    should_automount: bool,
+    can_mount: bool,
+    mounted: bool,
+    removable: bool,
+) -> bool {
+    should_automount && can_mount && !mounted && removable
+}
+
+/// WMDE: mounts `volume` if [`automount_wanted`] says so, and with `announce` reports the
+/// mount so that the desktop layer can show its notification.
+///
+/// No mount operation is passed on purpose. gvfs then tells udisks not to interact: nothing
+/// asks for a password, an encrypted volume stays locked until opened from the file
+/// manager, and a session that is not the active one is refused quietly by polkit.
+fn automount_volume(
+    volume: &gio::Volume,
+    announce: bool,
+    event_tx: std::sync::Weak<crate::channel::Sender<Event>>,
+) {
+    let removable = volume.drive().is_some_and(|drive| drive.is_removable());
+    if !automount_wanted(
+        volume.should_automount(),
+        volume.can_mount(),
+        volume.get_mount().is_some(),
+        removable,
+    ) {
+        return;
+    }
+
+    let name = VolumeExt::name(volume).to_string();
+    log::info!("automount {name}");
+    let mounted = volume.clone();
+    VolumeExt::mount(
+        volume,
+        gio::MountMountFlags::NONE,
+        gio::MountOperation::NONE,
+        gio::Cancellable::NONE,
+        move |res| match res {
+            Ok(()) => {
+                let path = mounted
+                    .get_mount()
+                    .and_then(|mount| MountExt::root(&mount).path());
+                log::info!("automount {name}: mounted at {path:?}");
+                if announce
+                    && let Some(path) = path
+                    && let Some(event_tx) = event_tx.upgrade()
+                {
+                    event_tx.send(Event::Automounted(name, path));
+                }
+            }
+            Err(err) => log::warn!("automount {name}: {err}"),
+        },
+    );
+}
+
 fn mount_op(
     uri: String,
     event_tx: std::sync::Weak<crate::channel::Sender<Event>>,
@@ -408,10 +473,16 @@ enum Cmd {
         mpsc::Sender<Result<(String, String, Option<PathBuf>), glib::Error>>,
     ),
     Unmount(MounterItem),
+    /// WMDE: whether removable volumes are mounted on their own. Only the desktop layer sends
+    /// it; see `Mounter::automount`.
+    Automount(bool),
 }
 
 enum Event {
     Changed,
+    /// WMDE: a volume plugged in during the session was mounted on its own: its name and the
+    /// directory it is mounted on.
+    Automounted(String, PathBuf),
     Items(MounterItems),
     MountResult(MounterItem, Result<bool, String>),
     NetworkAuth(String, MounterAuth, mpsc::Sender<MounterAuth>),
@@ -485,6 +556,10 @@ impl Gvfs {
             main_loop.context().spawn_local(async move {
                 let event_tx = Arc::downgrade(&event_tx);
                 let monitor = gio::VolumeMonitor::get();
+                // WMDE: `None` until the desktop layer first says whether to automount. The
+                // answer that turns it on mounts what was plugged in before it came, without
+                // a notification, as Windows gives such a drive its letter at sign-in.
+                let automount: Rc<Cell<Option<bool>>> = Rc::new(Cell::new(None));
                 {
                     let event_tx = event_tx.clone();
                     monitor.connect_mount_changed(move |_monitor, mount| {
@@ -524,10 +599,14 @@ impl Gvfs {
                 }
                 {
                     let event_tx = event_tx.clone();
+                    let automount = automount.clone();
                     monitor.connect_volume_added(move |_monitor, volume| {
                         log::info!("volume added {}", VolumeExt::name(volume));
                         if let Some(event_tx) = event_tx.upgrade() {
                             event_tx.send(Event::Changed);
+                        }
+                        if automount.get() == Some(true) {
+                            automount_volume(volume, true, event_tx.clone());
                         }
                     });
                 }
@@ -691,6 +770,14 @@ impl Gvfs {
                         Cmd::DirInfo(uri, result_tx) => {
                             result_tx.send(dir_info(&uri)).await.unwrap();
                         }
+                        Cmd::Automount(enabled) => {
+                            let first = automount.replace(Some(enabled)).is_none();
+                            if first && enabled {
+                                for volume in monitor.volumes() {
+                                    automount_volume(&volume, false, event_tx.clone());
+                                }
+                            }
+                        }
                         Cmd::Unmount(mounter_item) => {
                             let MounterItem::Gvfs(item) = mounter_item else { continue };
                             let ItemKind::Mount = item.kind else { continue };
@@ -812,6 +899,12 @@ impl Mounter for Gvfs {
         })
     }
 
+    fn automount(&self, enabled: bool) {
+        if let Err(err) = self.command_tx.send(Cmd::Automount(enabled)) {
+            log::warn!("gvfs thread is gone, automount not set: {err}");
+        }
+    }
+
     fn subscription(&self) -> Subscription<MounterMessage> {
         let command_tx = self.command_tx.clone();
         let event_rx = self.event_rx.clone();
@@ -859,6 +952,10 @@ impl Mounter for Gvfs {
                                     .send(MounterMessage::NetworkResult(uri, res))
                                     .await
                                     .unwrap(),
+                                Event::Automounted(name, path) => output
+                                    .send(MounterMessage::Automounted(name, path))
+                                    .await
+                                    .unwrap(),
                             }
                         }
                         pending().await
@@ -866,5 +963,27 @@ impl Mounter for Gvfs {
                 )
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::automount_wanted;
+
+    /// Only a removable volume that asks for it, can be mounted and is not yet mounted is
+    /// mounted on its own; each of the four alone vetoes it.
+    #[test]
+    fn automount_needs_all_four() {
+        for bits in 0u8..16 {
+            let [should, can, mounted, removable] = [1, 2, 4, 8].map(|bit| bits & bit != 0);
+            assert_eq!(
+                automount_wanted(should, can, mounted, removable),
+                should && can && !mounted && removable,
+                "should={should} can={can} mounted={mounted} removable={removable}"
+            );
+        }
+        assert!(automount_wanted(true, true, false, true));
+        assert!(!automount_wanted(true, true, false, false));
+        assert!(!automount_wanted(true, true, true, true));
     }
 }
