@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = Gerenciador de arquivos do WMDE
 keywords = Pasta;Gestor;
 empty-folder = Pasta vazia
@@ -190,7 +190,7 @@ list-view = Visualização em lista
 show-hidden-files = Mostrar ficheiros ocultos
 list-directories-first = Listar primeiro os diretórios
 menu-settings = Definições...
-menu-about = Acerca do WMDE Files...
+menu-about = Acerca do Files...
 repository = Repositório
 support = Suporte
 details = Detalhes

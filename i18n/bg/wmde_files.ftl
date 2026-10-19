@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Празна папка
 empty-folder-hidden = Празна папка (съдържа скрити елементи)
 no-results = Няма намерени резултати
@@ -409,7 +409,7 @@ show-hidden-files = Показване на скритите файлове
 list-directories-first = Изброяване първо на папките
 gallery-preview = Изглед като галерия
 menu-settings = Настройки...
-menu-about = Относно „WMDE Files“...
+menu-about = Относно „Files“...
 
 ## Sort
 

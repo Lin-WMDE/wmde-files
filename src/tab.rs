@@ -91,6 +91,17 @@ const TEXT_PREVIEW_MAX_BYTES: usize = 4 * 1024; // 4 KiB
 const TEXT_PREVIEW_MAX_LINES: usize = 32;
 /// Maximum file size (bytes) to attempt text preview; files larger than this are skipped entirely.
 const TEXT_PREVIEW_MAX_FILE_BYTES: u64 = 8 * 1000 * 1000; // 8 MiB
+/// WMDE: the desktop label lies on the wallpaper, not on a surface of the theme, so its colours
+/// do not follow the theme: white over a dark halo in both palettes, as in Windows.
+const DESKTOP_LABEL_COLOR: Color = Color::WHITE;
+const DESKTOP_LABEL_HALO: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.6,
+};
+/// WMDE: opacity of a cut desktop label, the alpha of `on_disabled` in the theme (0xA6).
+const DESKTOP_LABEL_CUT_ALPHA: f32 = 0.65;
 
 // Thumbnail generation semaphore - limits parallel thumbnail workers
 // Uses 4 workers for balanced throughput and memory usage
@@ -466,24 +477,9 @@ fn tab_complete(path: &Path) -> Result<Vec<(String, PathBuf)>, Box<dyn Error>> {
     Ok(completions)
 }
 
-//TODO: translate, add more levels?
+// WMDE: one size format for the whole stack - base 1024, localized units and decimal separator.
 pub fn format_size(size: u64) -> String {
-    const KB: u64 = 1000;
-    const MB: u64 = 1000 * KB;
-    const GB: u64 = 1000 * MB;
-    const TB: u64 = 1000 * GB;
-
-    if size >= TB {
-        format!("{:.1} TB", size as f64 / TB as f64)
-    } else if size >= GB {
-        format!("{:.1} GB", size as f64 / GB as f64)
-    } else if size >= MB {
-        format!("{:.1} MB", size as f64 / MB as f64)
-    } else if size >= KB {
-        format!("{:.1} KB", size as f64 / KB as f64)
-    } else {
-        format!("{size} B")
-    }
+    cosmic::units::size(size)
 }
 
 const MODE_SHIFT_USER: u32 = 6;
@@ -2168,12 +2164,13 @@ impl ItemThumbnail {
             if size <= max_size {
                 true
             } else {
+                // WMDE: raw bytes, the log is English and format_size is localized.
                 log::warn!(
-                    "skipping internal {} thumbnailer for {}: file size {} is larger than {}",
+                    "skipping internal {} thumbnailer for {}: file size {} bytes is larger than {} bytes",
                     thumbnailer,
                     path.display(),
-                    format_size(size),
-                    format_size(max_size)
+                    size,
+                    max_size
                 );
                 false
             }
@@ -2605,9 +2602,10 @@ impl Item {
 
         let mut details = widget::column::with_capacity(8).spacing(space_xxxs);
         details = details.push(widget::selectable_text::heading(self.name.clone()));
+        // WMDE: the name of the type, not the MIME string.
         details = details.push(widget::text::body(fl!(
             "type",
-            mime = self.mime.to_string()
+            mime = crate::mime_icon::mime_description(&self.mime)
         )));
         let mut settings = Vec::new();
         if let Some(mime_app_cache) = mime_app_cache_opt {
@@ -2832,30 +2830,30 @@ impl Item {
         let mut column = widget::column::with_capacity(3).spacing(space_xxxs);
         column = column.push(widget::text::heading(heading));
 
-        //TODO: translate!
         //TODO: correct display of folder size?
+        // WMDE: the lines go through the existing keys of the details pane.
         if let ItemMetadata::Path {
             metadata,
             children_opt,
         } = &self.metadata
         {
             if metadata.is_dir() {
-                if let Some(children) = children_opt {
-                    column = column.push(widget::text::body(format!("Items: {children}")));
+                if let Some(children) = *children_opt {
+                    column = column.push(widget::text::body(fl!("items", items = children)));
                 }
             } else {
-                column = column.push(widget::text::body(format!(
-                    "Size: {}",
-                    format_size(metadata.len())
+                column = column.push(widget::text::body(fl!(
+                    "item-size",
+                    size = format_size(metadata.len())
                 )));
             }
             if let Ok(time) = metadata.modified() {
                 let date_time_formatter = date_time_formatter(military_time);
                 let time_formatter = time_formatter(military_time);
 
-                column = column.push(widget::text::body(format!(
-                    "Last modified: {}",
-                    format_time(time, &date_time_formatter, &time_formatter)
+                column = column.push(widget::text::body(fl!(
+                    "item-modified",
+                    modified = format_time(time, &date_time_formatter, &time_formatter).to_string()
                 )));
             }
         } else {
@@ -2975,6 +2973,9 @@ pub struct Tab {
     date_time_formatter: DateTimeFormatter<fieldsets::YMDT>,
     time_formatter: DateTimeFormatter<fieldsets::T>,
     window_id: Option<window::Id>,
+    /// WMDE: the folder came back empty because it cannot be read, so the placeholder says
+    /// so instead of calling it empty. Set in `set_items`, never from a render.
+    pub wmde_access_denied: bool,
 }
 
 async fn calculate_dir_size(path: &Path, controller: Controller) -> Result<u64, OperationError> {
@@ -3156,6 +3157,7 @@ impl Tab {
             date_time_formatter: date_time_formatter(config.military_time),
             time_formatter: time_formatter(config.military_time),
             window_id,
+            wmde_access_denied: false,
         }
     }
 
@@ -3187,6 +3189,10 @@ impl Tab {
                 item.selected = true;
             }
         }
+        // WMDE: scan_path swallows the read error; ask again, only for an empty listing.
+        self.wmde_access_denied = items.is_empty()
+            && matches!(&self.location, Location::Path(path) if fs::read_dir(path)
+                .is_err_and(|err| err.kind() == std::io::ErrorKind::PermissionDenied));
         self.items_opt = Some(items);
         if let Some(i) = highlighted
             .zip(self.items_opt.as_mut())
@@ -5653,7 +5659,10 @@ impl Tab {
                         .size(64)
                         .icon()
                         .into(),
-                    widget::text::body(if has_hidden {
+                    // WMDE: a folder that cannot be read is not an empty one.
+                    widget::text::body(if self.wmde_access_denied {
+                        fl!("folder-access-denied")
+                    } else if has_hidden {
                         fl!("empty-folder-hidden")
                     } else if matches!(self.location, Location::Search(..)) {
                         fl!("no-results")
@@ -5674,33 +5683,31 @@ impl Tab {
     }
 
     /// WMDE: the label under a grid icon. On the desktop Windows draws the name straight over
-    /// the wallpaper with a drop shadow and no plate behind it; iced has no text shadow, so a
-    /// dark copy is stacked one pixel down-right. Both copies are padded to the same inner
-    /// width so they wrap identically and the shadow stays aligned.
-    fn grid_label(display_name: &str, desktop: bool) -> Element<'_, Message> {
+    /// the wallpaper with a drop shadow and no plate behind it; iced has no text shadow, so
+    /// dark copies are stacked around a white one. All copies are padded to the same inner
+    /// width so they wrap identically and the shadow stays aligned. A cut item keeps the halo
+    /// and dims the white. In a window the label takes the colour of the theme.
+    fn grid_label(display_name: &str, desktop: bool, cut: bool) -> Element<'_, Message> {
         if !desktop {
             return Item::grid_display_name(display_name).into();
         }
         fn shadow_style(_theme: &cosmic::Theme) -> TextStyle {
             TextStyle {
-                color: Some(Color {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.6,
-                }),
+                color: Some(DESKTOP_LABEL_HALO),
                 ..Default::default()
             }
         }
         // The foreground copy must set its colour EXPLICITLY: wrapping the text in a
         // container breaks the inheritance of the button style's text_color, so the label
         // silently fell back to the default (dark) colour and vanished against the wallpaper.
-        fn label_style(theme: &cosmic::Theme) -> TextStyle {
-            TextStyle {
-                color: Some(Color::from(theme.cosmic().on_bg_color())),
-                ..Default::default()
+        let label = if cut {
+            Color {
+                a: DESKTOP_LABEL_CUT_ALPHA,
+                ..DESKTOP_LABEL_COLOR
             }
-        }
+        } else {
+            DESKTOP_LABEL_COLOR
+        };
         // Measured off the Win10 reference: the halo around the glyphs is near black and sits
         // on every side, not just down-right. Without blur, stack a dark copy at each diagonal
         // - overlapping them builds the halo up. Every copy spends the same 2px padding
@@ -5718,7 +5725,7 @@ impl Tab {
             shadow([2, 2, 0, 0]),
             shadow([0, 0, 2, 2]),
             widget::container(
-                Item::grid_display_name(display_name).class(theme::Text::Custom(label_style))
+                Item::grid_display_name(display_name).class(theme::Text::Color(label))
             )
             .padding([1, 1, 1, 1]),
         ]
@@ -5859,6 +5866,7 @@ impl Tab {
                             widget::button::custom(Self::grid_label(
                                 &item.display_name,
                                 matches!(self.mode, Mode::Desktop),
+                                item.cut,
                             ))
                                 .id(item.button_id.clone())
                                 .padding([0, space_xxxs])
@@ -6782,7 +6790,10 @@ impl Tab {
         let mut dir_size_error: Option<String> = None;
 
         for item in selected_items.iter() {
-            *mime_type_counts.entry(item.mime.to_string()).or_insert(0) += 1;
+            // WMDE: counted by the name of the type, not the MIME string.
+            *mime_type_counts
+                .entry(crate::mime_icon::mime_description(&item.mime))
+                .or_insert(0) += 1;
 
             if let Some(metadata) = item.file_metadata() {
                 if metadata.is_dir() {
@@ -7726,6 +7737,46 @@ mod tests {
         assert_eq!(0, path.read_dir()?.count());
         assert!(actual.is_empty());
 
+        Ok(())
+    }
+
+    // WMDE: a folder that cannot be read is flagged, an empty readable one is not.
+    #[test]
+    fn tab_flags_unreadable_folder() -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let fs = empty_fs()?;
+        let readable = fs.path().join("readable");
+        let locked = fs.path().join("locked");
+        fs::create_dir(&readable)?;
+        fs::create_dir(&locked)?;
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000))?;
+
+        let access_denied = |path: &PathBuf| {
+            let location = Location::Path(path.clone());
+            let (_parent_item_opt, items) = location.scan(IconSizes::default());
+            let mut tab = Tab::new(
+                location,
+                TabConfig::default(),
+                ThumbCfg::default(),
+                None,
+                widget::Id::unique(),
+                None,
+            );
+            tab.set_items(items);
+            tab.wmde_access_denied
+        };
+
+        assert!(!access_denied(&readable));
+        // root reads any folder, so the denial can only be seen as a regular user.
+        if uzers::get_current_uid() == 0 {
+            debug!("running as root, the unreadable folder is not checked");
+        } else {
+            assert!(access_denied(&locked));
+        }
+
+        // Give the folder back so TempDir can remove it.
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o700))?;
         Ok(())
     }
 

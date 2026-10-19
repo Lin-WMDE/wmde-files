@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Dosar gol
 empty-folder-hidden = Dosar gol (conține elemente ascunse)
 no-results = Niciun rezultat găsit
@@ -364,7 +364,7 @@ show-hidden-files = Afișează fișiere ascunse
 list-directories-first = Listează directoarele primele
 gallery-preview = Previzualizare galerie
 menu-settings = Setări...
-menu-about = Despre WMDE Files...
+menu-about = Despre Files...
 
 ## Sort
 

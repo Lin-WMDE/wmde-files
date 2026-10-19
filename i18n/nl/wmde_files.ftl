@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Lege map
 empty-folder-hidden = Lege map (met verborgen items)
 no-results = Geen resultaten gevonden
@@ -394,7 +394,7 @@ show-hidden-files = Verborgen bestanden tonen
 list-directories-first = Mappen bovenaan weergeven
 gallery-preview = Galerijweergave
 menu-settings = Instellingen…
-menu-about = Over WMDE Bestanden…
+menu-about = Over Bestanden…
 
 ## Sort
 

@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = Správca súborov pre prostredie WMDE
 keywords = Priečinok;Správca;Súbory;Manažér;Prehliadač;
 empty-folder = Priečinok je prázdny
@@ -444,7 +444,7 @@ show-hidden-files = Zobraziť skryté súbory
 list-directories-first = Najskôr priečinky
 gallery-preview = Náhľad galérie
 menu-settings = Nastavenia...
-menu-about = O aplikácii WMDE Files...
+menu-about = O aplikácii Files...
 
 ## Sort
 

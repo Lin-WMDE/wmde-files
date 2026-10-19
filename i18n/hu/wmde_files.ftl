@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = Fájlkezelő a WMDE asztali környezethez
 keywords = mappa;fájl;kezelő;
 empty-folder = Üres mappa
@@ -408,7 +408,7 @@ show-hidden-files = Rejtett fájlok megjelenítése
 list-directories-first = Könyvtárak listázása először
 gallery-preview = Galéria-előnézet
 menu-settings = Beállítások…
-menu-about = A WMDE Files névjegye…
+menu-about = A Files névjegye…
 
 ## Sort
 

@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Tom mappe
 empty-folder-hidden = Tom mappe (har skjulte emner)
 no-results = Fandt ingen resultater
@@ -303,7 +303,7 @@ show-hidden-files = Vis skjulte filer
 list-directories-first = List mapper først
 gallery-preview = Galleri-forhåndsvisning
 menu-settings = Indstillinger...
-menu-about = Om WMDE Filer...
+menu-about = Om Filer...
 
 ## Sort
 

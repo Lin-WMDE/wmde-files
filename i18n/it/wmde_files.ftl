@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = File manager per il desktop WMDE
 keywords = File;Archivi;Cartelle;Explorer;
 empty-folder = Cartella vuota
@@ -388,7 +388,7 @@ show-hidden-files = Mostra file nascosti
 list-directories-first = Mostra prima le cartelle
 gallery-preview = Anteprima immagine
 menu-settings = Impostazioni...
-menu-about = Informazioni su WMDE Files...
+menu-about = Informazioni su Files...
 
 ## Sort
 

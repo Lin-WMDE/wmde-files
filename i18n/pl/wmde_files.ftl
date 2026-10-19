@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = Menedżer plików dla środowiska WMDE
 keywords = Katalogi;Pliki;Menedżer;
 empty-folder = Pusty katalog
@@ -412,7 +412,7 @@ show-hidden-files = Pokaż ukryte pliki
 list-directories-first = Najpierw wyświetlaj katalogi
 gallery-preview = Podgąd galerii
 menu-settings = Ustawienia…
-menu-about = O WMDE Files…
+menu-about = O Files…
 
 ## Sort
 

@@ -9,7 +9,7 @@
   <update_contact>jeremy@system76.com</update_contact>
   <url type="homepage">https://wmde.fun</url>
   <url type="bugtracker">https://github.com/Lin-WMDE/wmde-files</url>
-  <name>WMDE Files</name>
+  <name>Files</name>
   <summary>File manager for the WMDE desktop</summary>
   <description>
     <p>File manager for the WMDE desktop</p>

@@ -2262,7 +2262,8 @@ impl App {
 
     fn update_title(&mut self) -> Task<Message> {
         let window_title = match self.tab_model.text(self.tab_model.active()) {
-            Some(tab_title) => format!("{tab_title} — {}", fl!("wmde-files")),
+            // WMDE: "<document> - <App>" with an ASCII hyphen, as every window of the stack.
+            Some(tab_title) => format!("{tab_title} - {}", fl!("wmde-files")),
             None => fl!("wmde-files"),
         };
         if let Some(window_id) = self.core.main_window_id() {
@@ -6697,8 +6698,9 @@ impl Application for App {
                 let (operation, _, err) = self.failed_operations.get(id)?;
 
                 //TODO: nice description of error
+                // WMDE: localized title.
                 widget::dialog()
-                    .title("Failed operation")
+                    .title(fl!("failed-operation"))
                     .body(format!("{operation:#?}\n{err}"))
                     .icon(icon::from_name("dialog-error").size(64))
                     //TODO: retry action
@@ -6716,8 +6718,9 @@ impl Application for App {
                     .collect();
 
                 //TODO: nice description of error
+                // WMDE: localized title.
                 widget::dialog()
-                    .title("Failed operations")
+                    .title(fl!("failed-operations"))
                     .body(errors.join("\n\n"))
                     .icon(icon::from_name("dialog-error").size(64))
                     //TODO: retry action
@@ -7390,7 +7393,7 @@ impl Application for App {
             widget::tab_bar::horizontal(&self.tab_model)
                 .button_height(32)
                 .button_spacing(space_xxs)
-                .style(wmde_tab_style())
+                .style(wmde_tab_style(self.core().main_window_focused()))
                 .enable_tab_drag(String::from("x-wmde-files/tab-dnd"))
                 .on_reorder(Message::ReorderTab)
                 .tab_drag_threshold(25.)
@@ -8765,10 +8768,11 @@ fn wmde_menubar_container() -> theme::Container<'static> {
 }
 
 // WMDE: Win11-style tabs - active tab uses the body surface color so it connects to the
-// content below, rounded only on top, no accent underline, neutral text.
-fn wmde_tab_style() -> theme::SegmentedButton {
+// content below, rounded only on top, no accent underline, neutral text. In a window without
+// focus every tab takes the dimmed title bar tone; the tab under the pointer stays bright.
+fn wmde_tab_style(focused: bool) -> theme::SegmentedButton {
     use cosmic::widget::segmented_button::{Appearance, ItemAppearance, ItemStatusAppearance};
-    theme::SegmentedButton::Custom(Box::new(|theme| {
+    theme::SegmentedButton::Custom(Box::new(move |theme| {
         let cosmic = theme.cosmic();
         let rad = cosmic.corner_radii.radius_s;
         let top_round = cosmic::iced::border::Radius::from([rad[0], rad[1], 0.0, 0.0]);
@@ -8776,6 +8780,12 @@ fn wmde_tab_style() -> theme::SegmentedButton {
         let body = cosmic::iced::Color::from(cosmic.primary(false).base);
         let on = cosmic::iced::Color::from(cosmic.background(false).on);
         let on_dim = cosmic::iced::Color::from(cosmic.background(false).component.on);
+        let (ink, ink_dim) = if focused {
+            (on, on_dim)
+        } else {
+            let unfocused = cosmic::widget::header_unfocused_color(theme);
+            (unfocused, unfocused)
+        };
         let item = |radius| ItemAppearance {
             border: cosmic::iced::Border {
                 radius,
@@ -8787,7 +8797,7 @@ fn wmde_tab_style() -> theme::SegmentedButton {
             first: item(top_round),
             middle: item(top_round),
             last: item(top_round),
-            text_color: on,
+            text_color: ink,
         };
         Appearance {
             background: None,
@@ -8796,7 +8806,7 @@ fn wmde_tab_style() -> theme::SegmentedButton {
             active,
             inactive: ItemStatusAppearance {
                 background: None,
-                text_color: on_dim,
+                text_color: ink_dim,
                 ..active
             },
             hover: ItemStatusAppearance {

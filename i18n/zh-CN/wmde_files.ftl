@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = 空文件夹
 empty-folder-hidden = 空文件夹（包含隐藏项目）
 no-results = 未找到结果
@@ -406,7 +406,7 @@ show-hidden-files = 显示隐藏文件
 list-directories-first = 优先列出目录
 gallery-preview = 图库预览
 menu-settings = 设置…
-menu-about = 关于 WMDE Files…
+menu-about = 关于 Files…
 
 ## Sort
 

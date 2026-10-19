@@ -24,7 +24,7 @@ removing-from-recents =
        *[other] hêman
     } ji { recents }
 password = Borînpeyv
-wmde-files = WMDE Files
+wmde-files = Files
 emptying-trash = { trash } tê valakirin({ $progress })...
 new-window = Çarçoveya nû
 remove = Rake
@@ -35,7 +35,7 @@ compressing =
        *[other] hêman
     } tê guvaştin ji "{ $from }" bo "{ $to }" ({ $progress })...
 move-to-trash = Bilivîne bo jêbirdankê
-menu-about = Derbarê WMDE Files...
+menu-about = Derbarê Files...
 file-already-exists = Pelek bi heman navî jixwe heye
 setting-executable-and-launching = "{ $name }" wekî pelê xebitandinê tê sazkirin û xebitandin
 open-multiple-files = Gelek pelan veke

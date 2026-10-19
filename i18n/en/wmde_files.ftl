@@ -1,6 +1,6 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = File manager for the WMDE desktop
-keywords = Folder;Manager;
+keywords = Folder;Manager;WMDE;
 empty-folder = Empty folder
 empty-folder-hidden = Empty folder (has hidden items)
 searching-network = Searching the network...
@@ -397,7 +397,7 @@ list-view = List view
 show-hidden-files = Show hidden files
 list-directories-first = List directories first
 menu-settings = Settings...
-menu-about = About WMDE Files...
+menu-about = About Files...
 
 ## Sort
 sort = Sort
@@ -428,3 +428,13 @@ go-forward = Forward
 go-up = Up
 cancel-edit = Cancel editing
 clear-search = Clear search
+
+## WMDE: file chooser
+wmde-open-title = Open
+wmde-file-not-found = File not found. Check the file name and try again.
+wmde-ok = OK
+folder-access-denied = You do not have access to this folder
+
+## WMDE: failed file operations
+failed-operation = Operation failed
+failed-operations = Operations failed

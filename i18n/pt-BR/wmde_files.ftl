@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = Gerenciador de arquivos do ambiente WMDE
 empty-folder = Pasta vazia
 empty-folder-hidden = Pasta vazia (contém itens ocultos)
@@ -415,7 +415,7 @@ show-hidden-files = Mostrar arquivos ocultos
 list-directories-first = Listar pastas primeiro
 gallery-preview = Pré-visualizar
 menu-settings = Configurações...
-menu-about = Sobre o WMDE Files...
+menu-about = Sobre o Files...
 
 ## Sort
 

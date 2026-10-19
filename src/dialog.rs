@@ -26,9 +26,9 @@ use recently_used_xbel::update_recently_used;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::any::TypeId;
 use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{self, Instant};
-use std::{env, fmt, fs};
+use std::{fmt, fs};
 
 use crate::app::{
     Action, ContextPage, Message as AppMessage, PreviewItem, PreviewKind, REPLACE_BUTTON_ID,
@@ -66,9 +66,10 @@ pub enum DialogKind {
 impl DialogKind {
     pub fn title(&self) -> String {
         match self {
-            Self::OpenFile => fl!("open-file"),
+            // WMDE: one "Open" title for files, as in Windows, whether or not several can be
+            // picked. The upstream keys stay untouched so Weblate merges stay clean.
+            Self::OpenFile | Self::OpenMultipleFiles => fl!("wmde-open-title"),
             Self::OpenFolder => fl!("open-folder"),
-            Self::OpenMultipleFiles => fl!("open-multiple-files"),
             Self::OpenMultipleFolders => fl!("open-multiple-folders"),
             Self::SaveFile { .. } => fl!("save-file"),
         }
@@ -437,6 +438,8 @@ impl<M: Send + 'static> Dialog<M> {
 enum DialogPage {
     NewFolder { parent: PathBuf, name: String },
     Replace { filename: String },
+    // WMDE: the name typed in the open dialog leads nowhere.
+    WmdeNotFound { name: String },
 }
 
 #[derive(Clone, Debug)]
@@ -559,6 +562,9 @@ struct App {
     filters: Vec<DialogFilter>,
     filter_selected: Option<usize>,
     filename_id: widget::Id,
+    // WMDE: the name or path in the file name box of the open dialog. The kind has nowhere to
+    // keep it: DialogKind::OpenFile carries no data, and changing it breaks the portal API.
+    wmde_open_name: String,
     modifiers: Modifiers,
     mounter_items: FxHashMap<MounterKey, MounterItems>,
     nav_model: segmented_button::SingleSelectModel,
@@ -578,7 +584,126 @@ struct App {
     type_select_last_key: Option<Instant>,
 }
 
+/// WMDE: the OK button of the "file not found" message, focused so Enter closes the message
+/// instead of submitting the file name box underneath again.
+static WMDE_NOT_FOUND_BUTTON_ID: std::sync::LazyLock<widget::Id> =
+    std::sync::LazyLock::new(|| widget::Id::new("wmde-not-found-button"));
+
+/// WMDE: where the name typed in the open dialog points. `~` and `~/...` are under `home`, an
+/// absolute path stands as is, anything else is relative to the folder on show (`dir`, none
+/// for a location that is not a folder).
+fn wmde_resolve_open_name(name: &str, home: &Path, dir: Option<&Path>) -> Option<PathBuf> {
+    if name == "~" {
+        return Some(home.to_path_buf());
+    }
+    if let Some(rest) = name.strip_prefix("~/") {
+        return Some(home.join(rest));
+    }
+    let path = Path::new(name);
+    if path.is_absolute() {
+        Some(path.to_path_buf())
+    } else {
+        dir.map(|dir| dir.join(path))
+    }
+}
+
 impl App {
+    /// WMDE: the dialog picks files, not folders, and does not save.
+    const fn wmde_opens_files(&self) -> bool {
+        !self.flags.kind.save() && !self.flags.kind.is_dir()
+    }
+
+    /// WMDE: indices of the selected items, to notice a change of the selection.
+    fn wmde_selection(&self) -> Vec<usize> {
+        self.tab.items_opt().map_or_else(Vec::new, |items| {
+            items
+                .iter()
+                .enumerate()
+                .filter(|(_, item)| item.selected)
+                .map(|(i, _)| i)
+                .collect()
+        })
+    }
+
+    /// WMDE: the file name box follows the selection, as in Windows: the clicked file, else
+    /// the first selected file; empty when only folders are selected, so Open enters a lone
+    /// selected folder again. A click into free space that selects nothing keeps the box.
+    fn wmde_sync_open_name(&mut self, clicked: Option<usize>) {
+        let Some(items) = self.tab.items_opt() else {
+            return;
+        };
+        if !items.iter().any(|item| item.selected) {
+            return;
+        }
+        let is_file = |item: &&tab::Item| item.selected && !item.metadata.is_dir();
+        self.wmde_open_name = clicked
+            .and_then(|i| items.get(i))
+            .filter(is_file)
+            .or_else(|| items.iter().find(is_file))
+            .map(|item| item.name.clone())
+            .unwrap_or_default();
+    }
+
+    /// WMDE: open what the file name box names, when it names something other than the
+    /// selection. A folder is entered, a file is returned, anything else gets a message.
+    /// `None` leaves the box to the selection, which is how several files are opened.
+    fn wmde_open_typed(&mut self) -> Option<Task<Message>> {
+        if !self.wmde_opens_files() {
+            return None;
+        }
+        // A message is already up: Open (Enter in the box) must not stack another one.
+        if !self.dialog_pages.is_empty() {
+            return Some(Task::none());
+        }
+        let name = self.wmde_open_name.trim().to_string();
+        if name.is_empty() {
+            return None;
+        }
+        // Compared untrimmed: a name taken from the list may start or end with a space. A
+        // folder is left to the path below, which also clears the box.
+        let selected_by_name = self.tab.items_opt().is_some_and(|items| {
+            items.iter().any(|item| {
+                item.selected && item.name == self.wmde_open_name && !item.metadata.is_dir()
+            })
+        });
+        if selected_by_name {
+            return None;
+        }
+
+        let dir = self.tab.location.path_opt().map(PathBuf::as_path);
+        let path = wmde_resolve_open_name(&name, &home_dir(), dir);
+        match path {
+            Some(path) if path.is_dir() => {
+                let location = Location::Path(fs::canonicalize(&path).unwrap_or(path));
+                self.wmde_open_name.clear();
+                Some(self.update(Message::TabMessage(tab::Message::Location(location))))
+            }
+            Some(path) if path.exists() => {
+                // `..` resolved the way the kernel did for exists(), so recents and the caller
+                // get the real folder; the file keeps its own name, as when picked in the list.
+                let path = match (path.parent().map(fs::canonicalize), path.file_name()) {
+                    (Some(Ok(dir)), Some(file_name)) => dir.join(file_name),
+                    _ => path,
+                };
+                if self.flags.config.show_recents {
+                    let _ = update_recently_used(
+                        &path,
+                        Self::APP_ID.to_string(),
+                        "wmde-files".to_string(),
+                        None,
+                    );
+                }
+                self.result_opt = Some(DialogResult::Open(vec![path]));
+                Some(window::close(self.flags.window_id))
+            }
+            _ => {
+                self.dialog_pages
+                    .push_back(DialogPage::WmdeNotFound { name });
+                Some(widget::button::focus(WMDE_NOT_FOUND_BUTTON_ID.clone()))
+            }
+        }
+    }
+
     fn button_view(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xxxs,
@@ -598,6 +723,16 @@ impl App {
                     .double_click_select_delimiter('.')
                     .on_input(Message::Filename)
                     .on_submit(|_| Message::Save(false)),
+            );
+        } else if self.wmde_opens_files() {
+            // WMDE: a file name box in the open dialog too, as in Windows: it takes a name in
+            // the current folder, a relative or an absolute path, or one starting with ~.
+            col = col.push(
+                widget::text_input("", &self.wmde_open_name)
+                    .id(self.filename_id.clone())
+                    .double_click_select_delimiter('.')
+                    .on_input(Message::Filename)
+                    .on_submit(|_| Message::Open),
             );
         }
 
@@ -675,7 +810,10 @@ impl App {
                 } else {
                     None
                 }
-            } else if has_selected || self.flags.kind.is_dir() {
+            } else if has_selected
+                || self.flags.kind.is_dir()
+                || (self.wmde_opens_files() && !self.wmde_open_name.trim().is_empty())
+            {
                 Some(Message::Open)
             } else {
                 None
@@ -1168,12 +1306,11 @@ impl Application for App {
         let title = flags.kind.title();
         let accept_label = flags.kind.accept_label();
 
+        // WMDE: without a path the dialog opens the home folder. The working directory of a
+        // GUI process means nothing to the user, and under `su` it is a folder they cannot read.
         let location = Location::Path(match &flags.path_opt {
             Some(path) => path.clone(),
-            None => match env::current_dir() {
-                Ok(path) => path,
-                Err(_) => home_dir(),
-            },
+            None => home_dir(),
         });
 
         // WMDE: the tab's context menus parent their popups to this window. Without it they
@@ -1207,6 +1344,7 @@ impl Application for App {
             filters: Vec::new(),
             filter_selected: None,
             filename_id: widget::Id::new("Dialog Filename"),
+            wmde_open_name: String::new(),
             modifiers: Modifiers::empty(),
             mounter_items: FxHashMap::default(),
             nav_model: segmented_button::ModelBuilder::default().build(),
@@ -1338,6 +1476,15 @@ impl Application for App {
                 .secondary_action(
                     widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                 ),
+            DialogPage::WmdeNotFound { name } => widget::dialog()
+                .title(name.as_str())
+                .icon(widget::icon::from_name("dialog-warning").size(64))
+                .body(fl!("wmde-file-not-found"))
+                .primary_action(
+                    widget::button::suggested(fl!("wmde-ok"))
+                        .on_press(Message::DialogCancel)
+                        .id(WMDE_NOT_FOUND_BUTTON_ID.clone()),
+                ),
         };
 
         Some(dialog.into())
@@ -1455,6 +1602,15 @@ impl Application for App {
     }
 
     fn on_escape(&mut self) -> Task<Message> {
+        // WMDE: Esc dismisses the "not found" message, not the whole dialog.
+        if matches!(
+            self.dialog_pages.front(),
+            Some(DialogPage::WmdeNotFound { .. })
+        ) {
+            self.dialog_pages.pop_front();
+            return Task::none();
+        }
+
         if self.tab.edit_location.is_some() {
             // Close location editing if enabled
             self.tab.edit_location = None;
@@ -1544,6 +1700,7 @@ impl Application for App {
                         DialogPage::Replace { .. } => {
                             return self.update(Message::Save(true));
                         }
+                        DialogPage::WmdeNotFound { .. } => {}
                     }
                 }
             }
@@ -1559,6 +1716,8 @@ impl Application for App {
 
                 if let DialogKind::SaveFile { filename } = &mut self.flags.kind {
                     *filename = new_filename;
+                } else if self.wmde_opens_files() {
+                    self.wmde_open_name = new_filename;
                 }
             }
             Message::Filter(filter_i) => {
@@ -1625,6 +1784,9 @@ impl Application for App {
                             self.type_select_last_key = Some(Instant::now());
 
                             self.tab.select_by_prefix(&self.type_select_prefix);
+                            if self.wmde_opens_files() {
+                                self.wmde_sync_open_name(None);
+                            }
                             if let Some(offset) = self.tab.select_focus_scroll() {
                                 return scrollable::scroll_to(
                                     self.tab.scrollable_id.clone(),
@@ -1766,6 +1928,10 @@ impl Application for App {
                 }
             },
             Message::Open => {
+                if let Some(task) = self.wmde_open_typed() {
+                    return task;
+                }
+
                 let mut paths = Vec::new();
                 if let Some(items) = self.tab.items_opt() {
                     for item in items {
@@ -1872,6 +2038,7 @@ impl Application for App {
                     _ => None,
                 };
 
+                let wmde_selection_before = self.wmde_opens_files().then(|| self.wmde_selection());
                 let tab_commands = self.tab.update(tab_message, self.modifiers);
 
                 // Update filename box when anything is selected
@@ -1883,6 +2050,14 @@ impl Application for App {
                     && !item.metadata.is_dir()
                 {
                     filename.clone_from(&item.name);
+                }
+                // WMDE: the open dialog's box follows the selection - on a click, and on any
+                // other change: arrows, the rubber band, Ctrl+A, and a ctrl-click, which drops
+                // an item on release rather than on press.
+                if let Some(before) = wmde_selection_before
+                    && (click_i_opt.is_some() || self.wmde_selection() != before)
+                {
+                    self.wmde_sync_open_name(click_i_opt);
                 }
 
                 let mut commands = Vec::new();
@@ -2283,5 +2458,46 @@ impl Application for App {
         }));
 
         Subscription::batch(subscriptions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use super::wmde_resolve_open_name;
+
+    // WMDE: the file name box of the open dialog.
+    #[test]
+    fn wmde_open_name_resolves_like_a_shell() {
+        let home = Path::new("/home/user");
+        let dir = Some(Path::new("/srv/data"));
+        let resolve = |name| wmde_resolve_open_name(name, home, dir);
+
+        assert_eq!(resolve("~"), Some(PathBuf::from("/home/user")));
+        assert_eq!(
+            resolve("~/a/b.txt"),
+            Some(PathBuf::from("/home/user/a/b.txt"))
+        );
+        assert_eq!(
+            resolve("/etc/hostname"),
+            Some(PathBuf::from("/etc/hostname"))
+        );
+        assert_eq!(
+            resolve("notes.txt"),
+            Some(PathBuf::from("/srv/data/notes.txt"))
+        );
+        assert_eq!(
+            resolve("sub/notes.txt"),
+            Some(PathBuf::from("/srv/data/sub/notes.txt"))
+        );
+        // Only a leading "~/" is the home folder; "~name" is a plain name.
+        assert_eq!(resolve("~notes"), Some(PathBuf::from("/srv/data/~notes")));
+        // A relative name needs a folder to be relative to.
+        assert_eq!(wmde_resolve_open_name("notes.txt", home, None), None);
+        assert_eq!(
+            wmde_resolve_open_name("/etc/hostname", home, None),
+            Some(PathBuf::from("/etc/hostname"))
+        );
     }
 }

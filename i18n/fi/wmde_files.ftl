@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Tyhjä kansio
 empty-folder-hidden = Tyhjä kansio (sisältää piilotettuja kohteita)
 no-results = Ei tuloksia
@@ -283,7 +283,7 @@ show-hidden-files = Näytä piilotetut tiedostot
 list-directories-first = Näytä kansiot ensin
 gallery-preview = Gallerian esikatselu
 menu-settings = Asetukset…
-menu-about = Tietoa WMDEin tiedostonhallinnasta…
+menu-about = Tietoa tiedostonhallinnasta…
 
 ## Sort
 

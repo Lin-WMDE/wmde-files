@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = खाली फ़ोल्डर
 empty-folder-hidden = खाली फ़ोल्डर (अदृश्य आइटम शामिल हैं)
 no-results = कोई परिणाम नहीं
@@ -272,7 +272,7 @@ list-view = सूची दृश्य
 show-hidden-files = छिपी हुई फाइलें दिखाएँ
 list-directories-first = सबसे पहले डाइरेक्ट्री दिखाएँ
 menu-settings = सेटिंग्स..।
-menu-about = WMDE Files के बारे में...
+menu-about = Files के बारे में...
 
 ## Sort
 

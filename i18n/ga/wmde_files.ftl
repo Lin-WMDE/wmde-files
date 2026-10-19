@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Fillteán folamh
 empty-folder-hidden = Fillteán folamh (tá míreanna folaithe ann)
 no-results = Níor aimsíodh aon torthaí
@@ -372,7 +372,7 @@ show-hidden-files = Taispeáin comhaid fholaithe
 list-directories-first = Liostaigh eolairí ar dtús
 gallery-preview = Réamhamharc gailearaí
 menu-settings = Socruithe...
-menu-about = Maidir le WMDE Files...
+menu-about = Maidir le Files...
 
 ## Sort
 

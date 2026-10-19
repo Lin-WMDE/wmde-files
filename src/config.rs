@@ -340,7 +340,8 @@ impl Default for DialogConfig {
         Self {
             folders_first: false,
             icon_sizes: IconSizes::default(),
-            show_details: true,
+            // WMDE: the Windows open dialog has no details pane.
+            show_details: false,
             show_hidden: false,
             view: View::List,
         }

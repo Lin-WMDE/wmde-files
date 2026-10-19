@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Бос бума
 empty-folder-hidden = Бос бума (жасырын элементтері бар)
 no-results = Нәтижелер табылмады
@@ -296,7 +296,7 @@ show-hidden-files = Жасырын файлдарды көрсету
 list-directories-first = Алдымен бумаларды тізімдеу
 gallery-preview = Галереяны алдын ала қарау
 menu-settings = Баптаулар...
-menu-about = WMDE Files туралы...
+menu-about = Files туралы...
 sort = Сұрыптау
 sort-a-z = А-Я
 sort-z-a = Я-А

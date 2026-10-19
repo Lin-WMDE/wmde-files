@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Файли
 empty-folder = Порожня тека
 empty-folder-hidden = Порожня тека (містить приховані елементи)
 searching-network = Пошук у мережі...
@@ -197,7 +197,7 @@ list-view = Перегляд списком
 show-hidden-files = Показати приховані файли
 list-directories-first = Теки спочатку
 menu-settings = Налаштування...
-menu-about = Про WMDE Files...
+menu-about = Про Файли...
 repository = Сховище
 support = Підтримка
 remove = Вилучити
@@ -229,7 +229,7 @@ open-item-location = Відкрити розташування елемента
 open-with-title = Як ви бажаєте відкрити «{ $name }»?
 browse-store = Переглянути { $store }
 other-apps = Інші застосунки
-related-apps = Пов'язані застосунки
+related-apps = Повʼязані застосунки
 permanently-delete-question = Остаточно видалити?
 delete = Видалити
 permanently-delete-warning = { $target } буде остаточно видалено. Цю дію не можна скасувати.
@@ -256,9 +256,9 @@ favorite-path-error-description =
     Вилучити з бічної панелі?
 keep = Залишити
 add-network-drive = Додати мережевий диск
-connect = З’єднати
-connect-anonymously = З'єднатись анонімно
-connecting = З'єднання…
+connect = Зʼєднати
+connect-anonymously = Зʼєднатись анонімно
+connecting = Зʼєднання…
 domain = Домен
 enter-server-address = Введіть адресу сервера
 network-drive-description =
@@ -274,9 +274,9 @@ network-drive-schemes =
     WebDAV,dav:// або davs://
 network-drive-error = Доступ до мережевого диска відсутній
 password = Пароль
-remember-password = Запам'ятати пароль
+remember-password = Запамʼятати пароль
 try-again = Спробувати знову
-username = Ім'я користувача
+username = Імʼя користувача
 progress = { $percent }%
 progress-cancelled = { $percent }%, скасовано
 progress-failed = { $percent }%, не вдалося
@@ -382,7 +382,7 @@ move-to = Перемістити до…
 copy-to-title = Виберіть місце призначення
 move-to-title = Виберіть місце призначення
 comment = Менеджер файлів для середовища WMDE
-keywords = Тека;Папка;Провідник;Менеджер;Каталог;
+keywords = Тека;Папка;Провідник;Менеджер;Каталог;WMDE;
 show-recents = Тека «Нещодавні» на бічній панелі
 automount = Автоматично підключати знімні диски
 automount-connected = Знімний диск підключено
@@ -427,3 +427,13 @@ go-forward = Уперед
 go-up = На рівень вище
 cancel-edit = Скасувати редагування
 clear-search = Очистити пошук
+
+## WMDE: file chooser
+wmde-open-title = Відкрити
+wmde-file-not-found = Файл не знайдено. Перевірте імʼя файлу й повторіть спробу.
+wmde-ok = Гаразд
+folder-access-denied = Немає доступу до цієї теки
+
+## WMDE: failed file operations
+failed-operation = Операцію не виконано
+failed-operations = Операції не виконано

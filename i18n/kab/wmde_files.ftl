@@ -1,5 +1,5 @@
 change-wallpaper = Beddel aɣrab n ugdil…
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Akaram d ilem
 empty-folder-hidden = Akaram d ilem (yesɛa iferdisen yeffren)
 no-results = Ulac igmaḍ yettwafen
@@ -159,7 +159,7 @@ grid-view = Askan s iẓiki
 list-view = Askan s tebdart
 show-hidden-files = Sken ifuyla uffiren
 gallery-preview = Taskant n temidelt
-menu-about = Ɣef WMDE Files…
+menu-about = Ɣef Files…
 sort = Asmizzwer
 sort-newest-first = Amaynut d amezwaru
 sort-oldest-first = Aqbur d amezwaru

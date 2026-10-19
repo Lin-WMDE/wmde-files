@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Boş klasör
 empty-folder-hidden = Boş klasör (gizli ögeler içerir)
 no-results = Sonuç bulunamadı
@@ -303,7 +303,7 @@ show-hidden-files = Gizli dosyaları göster
 list-directories-first = Önce dizinleri listele
 gallery-preview = Galeri ön izlemesi
 menu-settings = Ayarlar...
-menu-about = WMDE Files hakkında...
+menu-about = Files hakkında...
 
 ## Sort
 

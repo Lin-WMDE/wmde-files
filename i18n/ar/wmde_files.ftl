@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = مدير ملفات لسطح مكتب WMDE
 keywords = مجلد;ملف;مدير;
 empty-folder = مجلد فارغ
@@ -131,7 +131,7 @@ list-view = عرض اللائحة
 show-hidden-files = أظهر الملفات المخفية
 list-directories-first = اسرد المجلدات اولاً
 menu-settings = الإعدادات...
-menu-about = عن WMDE Files...
+menu-about = عن Files...
 dismiss = أهمِل الرسالة
 no-results = لم يُعثر على نتائج
 networks = الشبكات

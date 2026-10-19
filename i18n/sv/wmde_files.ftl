@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = Filhanterare för skrivbordsmiljön WMDE
 keywords = Folder;Katalog;Mapp;Manager;
 empty-folder = Mappen är tom
@@ -320,7 +320,7 @@ show-hidden-files = Visa dolda filer
 list-directories-first = Lista mappar först
 gallery-preview = Galleri förhandsvisning
 menu-settings = Inställningar...
-menu-about = Om WMDE Files...
+menu-about = Om Files...
 
 ## Sortera
 

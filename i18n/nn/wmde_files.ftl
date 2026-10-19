@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 open-file = Opna fil
 empty-folder = Tom mappe
 cancel = Avbryt

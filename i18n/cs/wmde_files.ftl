@@ -1,4 +1,4 @@
-wmde-files = WMDE Files
+wmde-files = Files
 comment = Správce souborů pro prostředí WMDE
 keywords = Složka;Složky;Správce;Manažer;Prohlížeč;
 empty-folder = Složka je prázdná
@@ -131,7 +131,7 @@ list-view = Zobrazit jako seznam
 show-hidden-files = Zobrazit skryté soubory
 list-directories-first = Řadit nejprve složky
 menu-settings = Nastavení...
-menu-about = O aplikaci WMDE Files...
+menu-about = O aplikaci Files...
 no-results = Nenalezeny žádné výsledky
 repository = Repozitář
 support = Podpora

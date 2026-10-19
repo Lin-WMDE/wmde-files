@@ -103,6 +103,37 @@ pub fn mime_for_path(
     }
 }
 
+/// WMDE: what shared-mime-info calls a type ("Folder", "Plain text document"), in the language
+/// of the environment, for the Type line of the details pane. Views call it, hence the cache.
+pub fn mime_description(mime: &Mime) -> String {
+    static MIME_DESCRIPTION_CACHE: LazyLock<Mutex<FxHashMap<Mime, String>>> =
+        LazyLock::new(|| Mutex::new(FxHashMap::default()));
+    MIME_DESCRIPTION_CACHE
+        .lock()
+        .unwrap()
+        .entry(mime.clone())
+        .or_insert_with(|| describe_mime(mime))
+        .clone()
+}
+
+/// The Ukrainian comments of shared-mime-info are lower case, so the first letter is raised.
+/// When gio has nothing to say, the MIME string stands in.
+#[cfg(feature = "gvfs")]
+fn describe_mime(mime: &Mime) -> String {
+    let description = gio::content_type_get_description(mime.essence_str());
+    let mut chars = description.trim().chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => mime.to_string(),
+    }
+}
+
+/// Without gvfs there is no gio to ask (the terminal embeds the dialog that way).
+#[cfg(not(feature = "gvfs"))]
+fn describe_mime(mime: &Mime) -> String {
+    mime.to_string()
+}
+
 pub fn mime_icon(mime: Mime, size: u16) -> icon::Handle {
     let mut mime_icon_cache = MIME_ICON_CACHE.lock().unwrap();
     match mime_icon_cache.get(MimeIconKey { mime, size }) {
@@ -131,4 +162,18 @@ pub fn is_mime_subclass_of(mime_type: &Mime, base: &Mime) -> bool {
     mime_icon_cache
         .shared_mime_info
         .mime_type_subclass(mime_type, base)
+}
+
+#[cfg(all(test, feature = "gvfs"))]
+mod tests {
+    use super::mime_description;
+
+    // WMDE: the Type line never starts lower case, whatever the language of the comments.
+    #[test]
+    fn mime_description_starts_upper_case() {
+        let mime = "inode/directory".parse().unwrap();
+        let description = mime_description(&mime);
+        let first = description.chars().next().expect("a description");
+        assert!(!first.is_lowercase(), "{description}");
+    }
 }

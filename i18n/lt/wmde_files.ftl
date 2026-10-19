@@ -1,5 +1,5 @@
 progress = { $percent }%
-wmde-files = WMDE Files
+wmde-files = Files
 empty-folder = Tuščias aplankas
 empty-folder-hidden = Tuščias aplankas (turi paslėptų failų)
 no-results = Rezultatų nėra
@@ -292,7 +292,7 @@ show-hidden-files = Rodyti paslėptus failus
 list-directories-first = Pirmiau pateikti aplankus
 gallery-preview = Galerijos peržiūra
 menu-settings = Nuostatai...
-menu-about = Apie WMDE Files...
+menu-about = Apie Files...
 sort = Rikiuoti
 sort-a-z = A-Ž
 sort-z-a = Ž-A
