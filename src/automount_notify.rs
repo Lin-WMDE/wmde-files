@@ -36,6 +36,13 @@ pub async fn show(name: String, path: PathBuf) {
 
 async fn notify(name: &str, path: &Path) -> zbus::Result<()> {
     let connection = zbus::Connection::session().await?;
+    // Ids are only unique within one run of the daemon: a restarted daemon counts from 1
+    // again, and its card number 3 would open the volume of the old daemon's card number 3.
+    // So only the daemon that shows this card is listened to.
+    let daemon = zbus::fdo::DBusProxy::new(&connection)
+        .await?
+        .get_name_owner(zbus::names::BusName::try_from(NAME)?)
+        .await?;
     let proxy = zbus::Proxy::new(&connection, NAME, PATH, NAME).await?;
     // Subscribed before the card exists, so that no answer to it can be missed. One stream
     // for all three signals keeps them in the order the daemon sent them: the token comes
@@ -65,6 +72,10 @@ async fn notify(name: &str, path: &Path) -> zbus::Result<()> {
     let mut token = None;
     while let Some(message) = signals.next().await {
         let header = message.header();
+        if header.sender().map(|sender| sender.as_str()) != Some(daemon.as_str()) {
+            // Another daemon owns the name now; the card went away with the old one.
+            break;
+        }
         let Some(member) = header.member() else {
             continue;
         };
