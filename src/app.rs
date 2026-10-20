@@ -8168,6 +8168,10 @@ impl Application for App {
             )
         }));
 
+        if let Some(dialog) = &self.file_dialog_opt {
+            subscriptions.push(dialog.subscription());
+        };
+
         Subscription::batch(subscriptions)
     }
 }
