@@ -257,24 +257,15 @@ fn selection_colors(theme: &theme::Theme) -> (Color, Color) {
 }
 
 // WMDE: selection of an icon in the grid and on the desktop, measured off
-// kde_file_selection.png: the fill is the accent at 30% and the border is the same accent
-// solid, one rectangle around the icon and its label. Corners stay square - `radius_xl` is
-// zero across the stack and selections are not an exception.
+// kde_file_selection.png: a translucent accent fill and the same accent solid as the border,
+// one rectangle around the icon and its label. Corners stay square - `radius_xl` is zero across
+// the stack and selections are not an exception.
 //
-// The accent is taken per theme rather than literally. The reference accent #3DAEE9 is a light
-// blue; ours is the darker Windows #0078D7, and 30% of it over the dark window background
-// lands on #163A57 - a hole rather than a highlight, the same failure the wash above records.
-// `accent_text` is the palette's own accent made readable on dark, so the tint keeps the
-// reference's weight instead of its literal value.
+// The fill is the theme's `icon_selection`, shared with the compositor's window switcher; the
+// theme derives it from the accent (see its field), so a new accent carries over.
 fn icon_selection_colors(theme: &theme::Theme) -> (Color, Color) {
-    let cosmic = theme.cosmic();
-    let accent = if cosmic.is_dark {
-        Color::from(cosmic.accent_text_color())
-    } else {
-        Color::from(cosmic.accent_color())
-    };
-
-    (Color { a: 0.30, ..accent }, accent)
+    let fill = Color::from(theme.cosmic().icon_selection);
+    (fill, Color { a: 1.0, ..fill })
 }
 
 /// WMDE: container style that paints the selection (and the drag/hover highlight) for a grid
